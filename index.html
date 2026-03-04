@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>NGX Market Tracker 🇳🇬</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{background:#080b12;color:#e2e8f0;font-family:'Segoe UI',Arial,sans-serif;min-height:100vh;font-size:14px}
+::-webkit-scrollbar{width:6px;height:6px}::-webkit-scrollbar-track{background:#0d1117}::-webkit-scrollbar-thumb{background:#1e2535;border-radius:3px}
+button,input{font-family:inherit}
+.mono{font-family:'Courier New',monospace}
+@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.fade{animation:fadeIn .25s ease forwards}
+#header{background:linear-gradient(180deg,#0d1117,transparent);border-bottom:1px solid #1e2535;padding:0 24px}
+#header-inner{max-width:1400px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;padding:16px 0;flex-wrap:wrap;gap:12px}
+#main{max-width:1400px;margin:0 auto;padding:24px}
+.cards{display:flex;gap:14px;margin-bottom:24px;flex-wrap:wrap}
+.card{background:linear-gradient(135deg,#0f1117,#111827);border:1px solid #1e2535;border-radius:12px;padding:18px 22px;flex:1;min-width:150px;position:relative;overflow:hidden}
+.card-icon{position:absolute;top:-16px;right:-16px;font-size:60px;opacity:.06;pointer-events:none}
+.card-label{color:#64748b;font-size:11px;text-transform:uppercase;letter-spacing:1.2px;margin-bottom:6px}
+.card-value{font-size:22px;font-weight:800;margin-bottom:2px}
+.card-sub{color:#475569;font-size:12px}
+.tabs{display:flex;gap:4px;border-bottom:1px solid #1e2535;margin-bottom:20px}
+.tab{background:none;border:none;cursor:pointer;color:#475569;padding:10px 18px;font-size:13px;font-weight:400;border-bottom:2px solid transparent;margin-bottom:-1px;transition:color .15s}
+.tab.active{color:#fff;font-weight:700;border-bottom-color:#22c55e}
+.tab:hover{color:#cbd5e1}
+.filters{display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;align-items:center}
+.search{background:#0d1117;border:1px solid #1e2535;border-radius:8px;padding:9px 14px;color:#e2e8f0;font-size:13px;width:260px;outline:none}
+.search:focus{border-color:#22c55e55}
+.sector-btns{display:flex;gap:6px;flex-wrap:wrap}
+.sbtn{border-radius:7px;padding:7px 14px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid #1e2535;background:transparent;color:#64748b;transition:all .15s}
+.tbl-wrap{background:#0d1117;border:1px solid #1e2535;border-radius:14px;overflow:hidden}
+.tbl-scroll{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:13px}
+thead tr{background:#080b12}
+th{padding:12px 14px;color:#475569;font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.8px;white-space:nowrap;user-select:none;cursor:pointer}
+th:hover{color:#cbd5e1}
+tbody tr{border-top:1px solid #0d1117;cursor:pointer}
+tbody tr:nth-child(even){background:#0a0e17}
+tbody tr:hover td{background:#111827}
+td{padding:11px 14px}
+.badge{border-radius:5px;padding:2px 8px;font-size:11px;font-weight:600;white-space:nowrap}
+.pill{padding:3px 8px;border-radius:5px;font-weight:700;font-size:12px}
+.pill.up{background:rgba(34,197,94,.12);color:#22c55e}
+.pill.dn{background:rgba(239,68,68,.12);color:#ef4444}
+#detail{margin-top:16px;border-radius:14px;padding:24px 28px;background:#0d1117;display:none}
+.detail-stats{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:20px}
+.dstat{background:#080b12;border-radius:8px;padding:12px 18px;min-width:120px}
+.dstat-label{color:#475569;font-size:11px;text-transform:uppercase;letter-spacing:.8px;margin-bottom:4px}
+.dstat-value{font-size:18px;font-weight:800}
+.charts-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+.chart-box{background:#0d1117;border:1px solid #1e2535;border-radius:14px;padding:20px 24px}
+.chart-box.full{grid-column:1/-1}
+.chart-title{color:#64748b;font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:16px}
+.sec-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px}
+.sec-card{border-radius:14px;padding:20px;position:relative;overflow:hidden;background:#0d1117}
+.sec-row{display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #1e2535;font-size:12px}
+.banner{background:rgba(245,158,11,.06);border:1px solid #f59e0b33;border-radius:12px;padding:16px 22px;margin-bottom:20px;display:none}
+.banner p{color:#94a3b8;font-size:13px;line-height:1.7;margin-top:4px}
+.banner strong{color:#e2e8f0}
+code{font-family:'Courier New',monospace;background:#111827;padding:2px 7px;border-radius:4px;color:#22c55e;font-size:12px}
+.live-dot{background:rgba(34,197,94,.1);border:1px solid #22c55e33;border-radius:6px;padding:5px 12px;font-size:12px;color:#22c55e}
+.demo-dot{background:rgba(245,158,11,.1);border:1px solid #f59e0b33;border-radius:6px;padding:5px 12px;font-size:12px;color:#f59e0b}
+.btn{background:rgba(255,255,255,.05);border:1px solid #1e2535;border-radius:6px;padding:5px 12px;color:#94a3b8;font-size:12px;cursor:pointer}
+.btn:hover{background:rgba(255,255,255,.1)}
+.btn-green{background:linear-gradient(135deg,#22c55e,#16a34a);border:none;border-radius:8px;padding:9px 0;color:#fff;font-size:13px;font-weight:700;cursor:pointer}
+.btn-red{background:rgba(239,68,68,.15);border:1px solid #ef444455;border-radius:8px;padding:9px 0;color:#ef4444;font-size:13px;cursor:pointer}
+.btn-blue{background:rgba(59,130,246,.15);border:1px solid #3b82f655;border-radius:8px;padding:9px 14px;color:#3b82f6;font-size:13px;cursor:pointer}
+#bell-wrap{position:relative}
+#bell-panel{display:none;position:absolute;right:0;top:44px;width:340px;z-index:100;background:#0f1117;border:1px solid #1e2535;border-radius:12px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.6)}
+#bell-panel.open{display:block}
+.bell-btn{border-radius:8px;padding:8px 14px;color:#fff;cursor:pointer;display:flex;align-items:center;gap:8px;font-size:13px}
+.alert-item{padding:10px 20px;border-bottom:1px solid #0d1117;display:flex;gap:10px;align-items:flex-start}
+.alert-dot{width:6px;height:6px;border-radius:50%;margin-top:5px;flex-shrink:0}
+</style>
+</head>
+<body>
+
+<div id="header">
+  <div id="header-inner">
+    <div style="display:flex;align-items:center;gap:12px">
+      <div style="width:40px;height:40px;border-radius:10px;background:linear-gradient(135deg,#16a34a,#15803d);display:flex;align-items:center;justify-content:center;font-size:20px;box-shadow:0 4px 16px #16a34a44">🇳🇬</div>
+      <div>
+        <div style="font-size:18px;font-weight:800;letter-spacing:-.5px">NGX Market Tracker</div>
+        <div id="subtitle" style="font-size:11px;color:#475569;letter-spacing:.5px">NIGERIAN STOCK EXCHANGE · TOP 30 · 3-MONTH WINDOW</div>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <div id="status" class="demo-dot">⚠ Demo mode</div>
+      <div id="bell-wrap">
+        <button id="bell-btn" class="bell-btn" style="background:rgba(255,255,255,.05);border:1px solid #ffffff22" onclick="toggleBell()">
+          🔔 <span id="bell-label">Enable Alerts</span>
+          <span id="bell-count" style="background:#ef4444;border-radius:50%;width:18px;height:18px;font-size:10px;display:none;align-items:center;justify-content:center;font-weight:700"></span>
+        </button>
+        <div id="bell-panel">
+          <div style="padding:16px 20px;border-bottom:1px solid #1e2535">
+            <div style="color:#94a3b8;font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:10px">Alert Settings</div>
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+              <span style="color:#cbd5e1;font-size:13px;flex:1">Move threshold</span>
+              <input type="range" id="thr" min="1" max="20" value="5" oninput="document.getElementById('thrval').textContent='≥'+this.value+'%'" style="flex:2;accent-color:#22c55e"/>
+              <span id="thrval" style="color:#22c55e;font-size:13px;font-weight:700;min-width:32px">≥5%</span>
+            </div>
+            <div style="display:flex;gap:8px">
+              <button id="notif-btn" class="btn-green" style="flex:1" onclick="enableNotif()">Enable Browser Notifications</button>
+              <button class="btn-blue" onclick="demoAlerts()">Demo</button>
+            </div>
+          </div>
+          <div id="alerts-list" style="max-height:260px;overflow-y:auto">
+            <div style="color:#475569;font-size:13px;text-align:center;padding:20px 0">No alerts yet</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="main">
+  <div id="banner" class="banner">
+    <div style="color:#f59e0b;font-weight:700;font-size:14px">📡 This is demo data — generate live data with 2 steps</div>
+    <p><strong>Step 1:</strong> Copy <code>ngx_dashboard.html</code> into your Rust project folder:<br>
+    <code>C:\Users\Administrator\ngx_screener\</code></p>
+    <p><strong>Step 2:</strong> Run <code>cargo run</code> — it will create <code>ngx_live.html</code> in that same folder with your real data baked in.</p>
+    <p><strong>Step 3:</strong> Open <code>ngx_live.html</code> — live green dot, real prices, every time.</p>
+  </div>
+
+  <div class="cards" id="cards"></div>
+
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('table',this)">📋 Stocks</button>
+    <button class="tab" onclick="switchTab('charts',this)">📊 Charts</button>
+    <button class="tab" onclick="switchTab('sectors',this)">🗂 Sectors</button>
+  </div>
+
+  <div id="tab-table" class="fade">
+    <div class="filters">
+      <input class="search" id="search" placeholder="🔍  Search ticker or company…" oninput="S.search=this.value;renderTable()"/>
+      <div class="sector-btns" id="secbtns"></div>
+    </div>
+    <div class="tbl-wrap"><div class="tbl-scroll">
+      <table>
+        <thead><tr>
+          <th onclick="srt('rank')"   style="text-align:left"  >#        <span id="a-rank"></span></th>
+          <th onclick="srt('ticker')" style="text-align:left"  >Ticker   <span id="a-ticker"></span></th>
+          <th onclick="srt('name')"   style="text-align:left"  >Company  <span id="a-name"></span></th>
+          <th onclick="srt('sector')" style="text-align:left"  >Sector   <span id="a-sector"></span></th>
+          <th onclick="srt('price')"  style="text-align:right" >Price (₦)<span id="a-price"></span></th>
+          <th onclick="srt('change')" style="text-align:right" >3M Chg   <span id="a-change"></span></th>
+          <th onclick="srt('vol')"    style="text-align:right" >Vol      <span id="a-vol"></span></th>
+          <th style="cursor:default">Trend</th>
+        </tr></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div></div>
+    <div id="detail"></div>
+  </div>
+
+  <div id="tab-charts" style="display:none" class="fade">
+    <div class="charts-grid">
+      <div class="chart-box full"><div class="chart-title">3-Month % Change — All Stocks</div><div id="c-bar"></div></div>
+      <div class="chart-box"><div class="chart-title">Average Gain by Sector</div><div id="c-hbar"></div></div>
+      <div class="chart-box"><div class="chart-title">Stock Count by Sector</div><div id="c-donut" style="display:flex;justify-content:center"></div></div>
+    </div>
+  </div>
+
+  <div id="tab-sectors" style="display:none" class="fade">
+    <div class="sec-grid" id="secgrid"></div>
+  </div>
+
+  <div style="margin-top:32px;padding:16px 0;border-top:1px solid #1e2535;display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px">
+    <span style="color:#1e2535;font-size:12px">NGX Market Tracker · Powered by Rust screener</span>
+    <span style="color:#1e2535;font-size:12px">Run <code style="color:#1e2535;background:none">cargo run</code> to regenerate ngx_live.html with fresh data</span>
+  </div>
+</div>
+
+<script>
+/* ── THIS LINE IS REPLACED BY RUST WITH REAL DATA ── */
+var INJECTED = {"generated_date":"04 Mar 2026, 09:04","stocks":[{"change":39.32,"name":"Stanbic IBTC Holdings","prev":41.63,"price":58.0,"rank":1,"sector":"Finance","sparkline":[30.05,31.06,32.13,31.27,30.46,30.87,31.31,29.84,28.46,27.15,26.99,58.0],"ticker":"STANBIC","vol":4.77},{"change":29.63,"name":"FCMB Group Plc","prev":6.75,"price":8.75,"rank":2,"sector":"Finance","sparkline":[9.28,9.31,9.33,9.72,10.13,9.95,10.16,10.38,10.61,10.2,10.21,8.75],"ticker":"FCMB","vol":5.26},{"change":28.14,"name":"Seplat Energy Plc","prev":2497.26,"price":3200.0,"rank":3,"sector":"Energy","sparkline":[2444.8,2421.08,2398.81,2470.05,2544.65,2468.56,2395.99,2418.75,2442.94,2468.59,2346.15,3200.0],"ticker":"SEPLAT","vol":5.24},{"change":25.89,"name":"FBN Holdings Plc","prev":11.28,"price":14.2,"rank":4,"sector":"Finance","sparkline":[12.59,12.53,12.48,12.43,12.87,12.54,12.24,11.94,12.12,12.31,11.76,14.2],"ticker":"FBNH","vol":4.63},{"change":21.33,"name":"Fidelity Bank Plc","prev":10.22,"price":12.4,"rank":5,"sector":"Finance","sparkline":[8.13,8.42,8.72,9.03,8.8,8.93,9.07,8.65,8.26,7.89,7.85,12.4],"ticker":"FIDELITYBK","vol":5.46},{"change":18.63,"name":"Oando Plc","prev":13.15,"price":15.6,"rank":6,"sector":"Energy","sparkline":[14.74,14.24,14.32,14.4,14.49,15.16,14.94,14.72,14.52,14.88,14.36,15.6],"ticker":"OANDO","vol":4.64},{"change":17.99,"name":"Dangote Sugar Refinery","prev":32.63,"price":38.5,"rank":7,"sector":"Agriculture","sparkline":[27.06,26.04,25.08,25.12,25.18,26.24,27.36,26.86,26.38,25.92,26.5,38.5],"ticker":"DANGSUGAR","vol":4.84},{"change":12.15,"name":"Neimeth International Pharmaceuticals","prev":2.14,"price":2.4,"rank":8,"sector":"Healthcare","sparkline":[1.93,2.01,2.09,2.06,2.02,2.06,2.11,2.03,1.95,1.95,2.03,2.4],"ticker":"NEIMETH","vol":5.44},{"change":11.87,"name":"Okomu Oil Palm Co Plc","prev":263.7,"price":295.0,"rank":9,"sector":"Agriculture","sparkline":[223.67,227.29,231.09,220.83,211.13,210.29,209.55,216.97,224.76,219.1,222.32,295.0],"ticker":"OKOMUOIL","vol":5.22},{"change":10.18,"name":"United Bank for Africa","prev":16.79,"price":18.5,"rank":10,"sector":"Finance","sparkline":[11.28,11.69,11.39,11.11,10.84,11.01,10.51,10.04,9.6,9.54,9.87,18.5],"ticker":"UBA","vol":4.9},{"change":10.04,"name":"GlaxoSmithKline Consumer Nigeria","prev":11.36,"price":12.5,"rank":11,"sector":"Healthcare","sparkline":[10.39,10.89,10.75,10.62,10.49,10.78,10.43,10.09,9.76,9.83,10.29,12.5],"ticker":"GLAXOSMITH","vol":5.51},{"change":10.0,"name":"Pharma-Deko Plc","prev":3.5,"price":3.85,"rank":12,"sector":"Healthcare","sparkline":[3.45,3.49,3.53,3.57,3.39,3.36,3.34,3.31,3.41,3.52,3.42,3.85],"ticker":"PHARMDEKO","vol":5.1},{"change":9.34,"name":"MRS Oil Nigeria Plc","prev":71.34,"price":78.0,"rank":13,"sector":"Energy","sparkline":[92.19,90.14,91.65,93.22,94.87,90.85,90.53,90.26,90.03,93.31,91.1,78.0],"ticker":"MRS","vol":5.4},{"change":6.58,"name":"Presco Plc","prev":455.06,"price":485.0,"rank":14,"sector":"Agriculture","sparkline":[468.16,490.31,483.54,477.11,471.0,483.77,467.32,451.66,454.1,456.78,477.7,485.0],"ticker":"PRESCO","vol":5.33},{"change":4.58,"name":"Livestock Feeds Plc","prev":3.06,"price":3.2,"rank":15,"sector":"Agriculture","sparkline":[2.13,2.03,1.94,1.92,1.91,1.97,2.04,1.99,1.93,1.88,1.79,3.2],"ticker":"LIVESTOCK","vol":4.65},{"change":4.48,"name":"Transnational Corporation","prev":4.02,"price":4.2,"rank":16,"sector":"Fintech","sparkline":[4.32,4.43,4.28,4.13,4.15,4.33,4.53,4.73,4.66,4.59,4.7,4.2],"ticker":"TRANSCORP","vol":5.2},{"change":2.25,"name":"Zenith Bank Plc","prev":36.38,"price":37.2,"rank":17,"sector":"Finance","sparkline":[37.52,36.57,35.65,36.15,36.68,35.01,33.43,33.22,33.03,32.86,31.97,37.2],"ticker":"ZENITHBANK","vol":5.31},{"change":0.35,"name":"Ardova Plc","prev":34.38,"price":34.5,"rank":18,"sector":"Energy","sparkline":[24.24,25.09,25.97,25.3,24.66,25.02,25.4,24.23,23.13,22.98,23.74,34.5],"ticker":"ARDOVA","vol":5.41},{"change":0.09,"name":"TotalEnergies Marketing Nigeria","prev":424.61,"price":425.0,"rank":19,"sector":"Energy","sparkline":[418.02,413.8,425.72,438.19,451.25,437.57,441.34,445.35,449.63,471.44,465.97,425.0],"ticker":"TOTAL","vol":4.96},{"change":-4.04,"name":"Access Holdings Plc","prev":23.76,"price":22.8,"rank":20,"sector":"Finance","sparkline":[20.1,19.3,18.55,18.54,18.54,19.28,18.88,18.49,18.11,18.46,17.69,22.8],"ticker":"ACCESS","vol":5.42},{"change":-7.82,"name":"NASCON Allied Industries","prev":56.41,"price":52.0,"rank":21,"sector":"Agriculture","sparkline":[73.96,73.97,74.03,76.96,80.04,78.44,76.91,78.4,79.97,76.67,76.57,52.0],"ticker":"NASCON","vol":4.83},{"change":-8.1,"name":"Fidson Healthcare Plc","prev":16.54,"price":15.2,"rank":22,"sector":"Healthcare","sparkline":[16.13,16.02,15.93,16.45,17.0,16.55,16.11,16.32,16.53,16.76,15.98,15.2],"ticker":"FIDSON","vol":5.27},{"change":-8.16,"name":"Ecobank Transnational Inc","prev":16.66,"price":15.3,"rank":23,"sector":"Finance","sparkline":[16.15,16.46,16.78,16.08,15.42,15.41,15.99,16.6,17.25,16.86,17.16,15.3],"ticker":"ETI","vol":5.15},{"change":-8.94,"name":"Conoil Plc","prev":97.19,"price":88.5,"rank":24,"sector":"Energy","sparkline":[134.94,135.36,135.85,141.62,147.71,145.19,142.78,145.96,149.29,152.77,147.15,88.5],"ticker":"CONOIL","vol":4.92},{"change":-9.11,"name":"Flour Mills of Nigeria","prev":46.21,"price":42.0,"rank":25,"sector":"Agriculture","sparkline":[47.55,47.34,47.15,48.8,50.54,49.29,48.11,48.82,49.56,50.35,48.12,42.0],"ticker":"FLOURMILL","vol":5.11},{"change":-9.61,"name":"Airtel Africa Plc","prev":2046.75,"price":1850.0,"rank":26,"sector":"Fintech","sparkline":[2231.12,2148.12,2151.78,2156.51,2162.33,2254.45,2212.74,2172.91,2134.89,2180.57,2096.18,1850.0],"ticker":"AIRTELAFRI","vol":4.73},{"change":-12.37,"name":"Omatek Ventures Plc","prev":0.97,"price":0.85,"rank":27,"sector":"Fintech","sparkline":[1.02,1.0,0.98,0.99,1.0,0.96,0.92,0.91,0.91,0.9,0.94,0.85],"ticker":"OMATEK","vol":5.36},{"change":-13.87,"name":"Guaranty Trust Holding Co","prev":52.83,"price":45.5,"rank":28,"sector":"Finance","sparkline":[45.05,43.66,42.33,42.69,43.08,45.18,47.42,46.86,46.34,45.84,47.18,45.5],"ticker":"GTCO","vol":4.91},{"change":-15.28,"name":"Wema Bank Plc","prev":6.61,"price":5.6,"rank":29,"sector":"Finance","sparkline":[5.79,5.56,5.35,5.34,5.35,5.56,5.79,5.67,5.56,5.45,5.56,5.6],"ticker":"WEMABANK","vol":5.38},{"change":-15.56,"name":"Union Diagnostic and Clinical Services","prev":2.25,"price":1.9,"rank":30,"sector":"Healthcare","sparkline":[2.61,2.55,2.59,2.63,2.68,2.56,2.55,2.54,2.53,2.62,2.55,1.9],"ticker":"UNION","vol":4.97}],"summary":{"avg_change":5.0,"best_ticker":"STANBIC","decliners":11,"gainers":19,"worst_ticker":"UNION"},"total":30}; /* <<NGX_DATA>> */
+
+/* ── sector colours ── */
+const SC={Energy:"#f59e0b",Finance:"#3b82f6",Agriculture:"#22c55e",Healthcare:"#ec4899",Fintech:"#a855f7"};
+
+/* ── demo fallback ── */
+const DEMO={
+  generated_date:"Demo Mode",total:30,
+  summary:{gainers:15,decliners:15,avg_change:5.84,best_ticker:"SEPLAT",worst_ticker:"CHAMS"},
+  stocks:[
+    {rank:1, ticker:"SEPLAT",    name:"Seplat Energy Plc",                    sector:"Energy",     price:3200.00,prev:2396.98,change:33.50,vol:5.9, sparkline:[97,99,101,98,103,106,104,108,110,107,112,115]},
+    {rank:2, ticker:"STANBIC",   name:"Stanbic IBTC Holdings",                sector:"Finance",    price:58.00,  prev:44.21,  change:31.18,vol:2.0, sparkline:[88,90,92,91,94,95,97,96,99,100,102,104]},
+    {rank:3, ticker:"FBNH",      name:"FBN Holdings Plc",                     sector:"Finance",    price:14.20,  prev:10.83,  change:31.13,vol:6.7, sparkline:[86,88,90,89,92,93,95,94,97,98,100,102]},
+    {rank:4, ticker:"FCMB",      name:"FCMB Group Plc",                       sector:"Finance",    price:8.75,   prev:6.89,   change:26.92,vol:5.0, sparkline:[85,87,89,88,91,92,94,93,96,97,99,101]},
+    {rank:5, ticker:"OANDO",     name:"Oando Plc",                            sector:"Energy",     price:15.60,  prev:12.63,  change:23.52,vol:8.0, sparkline:[90,92,94,93,96,97,99,98,101,102,104,106]},
+    {rank:6, ticker:"OKOMUOIL",  name:"Okomu Oil Palm Co Plc",                sector:"Agriculture",price:295.00, prev:253.37, change:16.43,vol:6.6, sparkline:[94,95,97,96,98,99,100,101,102,103,104,105]},
+    {rank:7, ticker:"UBA",       name:"United Bank for Africa",               sector:"Finance",    price:18.50,  prev:16.11,  change:14.85,vol:4.0, sparkline:[95,96,97,96,98,99,100,101,102,103,104,105]},
+    {rank:8, ticker:"GLAXOSMITH",name:"GlaxoSmithKline Consumer Nigeria",     sector:"Healthcare", price:12.50,  prev:10.90,  change:14.65,vol:4.1, sparkline:[95,96,97,96,98,99,100,101,102,103,104,105]},
+    {rank:9, ticker:"PHARMDEKO", name:"Pharma-Deko Plc",                      sector:"Healthcare", price:3.85,   prev:3.37,   change:14.36,vol:9.0, sparkline:[94,95,97,96,98,99,100,101,102,103,104,105]},
+    {rank:10,ticker:"FIDELITYBK",name:"Fidelity Bank Plc",                    sector:"Finance",    price:12.40,  prev:10.85,  change:14.28,vol:4.8, sparkline:[94,95,96,97,98,99,100,101,102,103,104,105]},
+    {rank:11,ticker:"MRS",       name:"MRS Oil Nigeria Plc",                  sector:"Energy",     price:78.00,  prev:68.55,  change:13.78,vol:7.4, sparkline:[93,94,95,96,97,98,99,100,101,102,103,104]},
+    {rank:12,ticker:"DANGSUGAR", name:"Dangote Sugar Refinery",               sector:"Agriculture",price:38.50,  prev:34.60,  change:11.28,vol:2.2, sparkline:[93,94,95,96,97,98,99,100,101,102,103,104]},
+    {rank:13,ticker:"PRESCO",    name:"Presco Plc",                           sector:"Agriculture",price:485.00, prev:436.71, change:11.06,vol:7.1, sparkline:[92,93,94,95,96,97,98,99,100,101,102,103]},
+    {rank:14,ticker:"NEIMETH",   name:"Neimeth International Pharmaceuticals",sector:"Healthcare", price:2.40,   prev:2.19,   change:9.66, vol:0.4, sparkline:[92,93,94,95,96,97,98,99,100,101,102,103]},
+    {rank:15,ticker:"ZENITHBANK",name:"Zenith Bank Plc",                      sector:"Finance",    price:37.20,  prev:34.89,  change:6.61, vol:7.9, sparkline:[96,97,97,98,98,99,99,100,100,101,101,102]},
+    {rank:16,ticker:"LIVESTOCK", name:"Livestock Feeds Plc",                  sector:"Agriculture",price:3.20,   prev:3.25,   change:-1.51,vol:3.6, sparkline:[102,101,101,100,100,99,99,99,98,98,98,99]},
+    {rank:17,ticker:"TRANSCORP", name:"Transnational Corporation",            sector:"Fintech",    price:4.20,   prev:4.27,   change:-1.55,vol:1.5, sparkline:[102,101,101,100,100,99,99,99,98,98,98,99]},
+    {rank:18,ticker:"ARDOVA",    name:"Ardova Plc",                           sector:"Energy",     price:34.50,  prev:35.10,  change:-1.70,vol:6.2, sparkline:[102,101,101,100,100,99,99,98,98,97,97,98]},
+    {rank:19,ticker:"NASCON",    name:"NASCON Allied Industries",             sector:"Agriculture",price:52.00,  prev:54.17,  change:-4.00,vol:8.2, sparkline:[104,103,102,101,100,99,98,97,96,97,96,97]},
+    {rank:20,ticker:"FIDSON",    name:"Fidson Healthcare Plc",                sector:"Healthcare", price:15.20,  prev:15.87,  change:-4.24,vol:8.5, sparkline:[104,103,102,101,100,99,98,97,96,97,96,97]},
+    {rank:21,ticker:"CONOIL",    name:"Conoil Plc",                           sector:"Energy",     price:88.50,  prev:93.33,  change:-5.18,vol:0.9, sparkline:[105,104,103,102,101,100,99,98,97,96,95,96]},
+    {rank:22,ticker:"FLOURMILL", name:"Flour Mills of Nigeria",               sector:"Agriculture",price:42.00,  prev:44.37,  change:-5.33,vol:8.8, sparkline:[105,104,103,102,101,100,99,98,97,96,95,96]},
+    {rank:23,ticker:"TOTAL",     name:"TotalEnergies Marketing Nigeria",      sector:"Energy",     price:425.00, prev:451.07, change:-5.78,vol:9.1, sparkline:[106,105,104,103,102,101,100,99,98,97,95,95]},
+    {rank:24,ticker:"AIRTELAFRI",name:"Airtel Africa Plc",                    sector:"Fintech",    price:1850.00,prev:1965.43,change:-5.87,vol:4.3, sparkline:[106,105,104,103,102,101,100,99,98,97,95,95]},
+    {rank:25,ticker:"ACCESS",    name:"Access Holdings Plc",                  sector:"Finance",    price:22.80,  prev:24.25,  change:-5.98,vol:1.6, sparkline:[106,105,104,103,102,101,100,99,98,96,95,95]},
+    {rank:26,ticker:"ETI",       name:"Ecobank Transnational Inc",            sector:"Finance",    price:15.30,  prev:17.01,  change:-10.05,vol:2.4,sparkline:[110,108,107,105,103,102,100,98,96,95,91,91]},
+    {rank:27,ticker:"GTCO",      name:"Guaranty Trust Holding Co",            sector:"Finance",    price:45.50,  prev:50.66,  change:-10.18,vol:7.1,sparkline:[110,108,107,105,103,102,100,98,96,95,91,91]},
+    {rank:28,ticker:"UNION",     name:"Union Diagnostic and Clinical Services",sector:"Healthcare",price:1.90,   prev:2.16,   change:-12.06,vol:7.5,sparkline:[112,110,108,106,104,102,100,98,95,93,90,89]},
+    {rank:29,ticker:"MTNN",      name:"MTN Nigeria Communications",           sector:"Fintech",    price:220.50, prev:251.55, change:-12.34,vol:5.2,sparkline:[113,111,109,107,105,103,101,99,96,93,90,89]},
+    {rank:30,ticker:"CHAMS",     name:"Chams Holding Company",                sector:"Fintech",    price:2.15,   prev:2.45,   change:-12.35,vol:5.1,sparkline:[113,111,109,107,105,103,101,99,96,93,90,89]},
+  ]
+};
+
+/* ── use injected data if present, else demo ── */
+const DATA  = INJECTED || DEMO;
+const LIVE  = INJECTED !== null;
+const stocks = DATA.stocks || [];
+const sum    = DATA.summary || {};
+
+/* ── state ── */
+const S={sector:"All",sortBy:"rank",sortDir:"asc",search:"",sel:null,notifOn:false,alerts:[],timer:null};
+
+/* ── SVG helpers ── */
+function sparkSVG(d,pos){
+  if(!d||d.length<2)return"";
+  const W=80,H=28,mn=Math.min(...d),mx=Math.max(...d),r=mx-mn||1;
+  const pts=d.map((v,i)=>`${i/(d.length-1)*W},${H-((v-mn)/r)*H}`).join(" ");
+  return `<svg width="${W}" height="${H}" style="display:block"><polyline fill="none" stroke="${pos?"#22c55e":"#ef4444"}" stroke-width="1.5" points="${pts}"/></svg>`;
+}
+
+function barSVG(st){
+  const W=900,H=220,PT=10,PB=32,PL=10,PR=10,iW=W-PL-PR,iH=H-PT-PB;
+  const mx=Math.max(...st.map(s=>Math.abs(s.change)))||1;
+  const bW=Math.max(3,iW/st.length-2),z=iH/2;
+  let b="",l="";
+  st.forEach((s,i)=>{
+    const pos=s.change>=0,bH=Math.abs(s.change)/mx*(iH/2);
+    const x=PL+i*(iW/st.length)+(iW/st.length-bW)/2,y=pos?PT+z-bH:PT+z;
+    b+=`<rect x="${x}" y="${y}" width="${bW}" height="${Math.max(1,bH)}" fill="${pos?"#22c55e":"#ef4444"}" rx="2" opacity=".85"/>`;
+    l+=`<text x="${x+bW/2}" y="${H-10}" text-anchor="middle" font-size="8" fill="#475569">${s.ticker}</text>`;
+  });
+  return `<svg width="100%" viewBox="0 0 ${W} ${H}" style="overflow:visible">
+    <line x1="${PL}" y1="${PT+z}" x2="${W-PR}" y2="${PT+z}" stroke="#1e2535"/>
+    ${b}${l}
+    <text x="2" y="${PT+8}" font-size="9" fill="#475569">+${mx.toFixed(0)}%</text>
+    <text x="2" y="${PT+z+4}" font-size="9" fill="#475569">0%</text>
+    <text x="2" y="${PT+iH+4}" font-size="9" fill="#475569">-${mx.toFixed(0)}%</text>
+  </svg>`;
+}
+
+function hBarSVG(sd){
+  const W=420,bH=30,g=10,PL=105,PR=70,PT=8,H=PT+sd.length*(bH+g);
+  const mx=Math.max(...sd.map(d=>Math.abs(d.avg)))||1;
+  let r="";
+  sd.forEach((d,i)=>{
+    const y=PT+i*(bH+g),bw=Math.abs(d.avg)/mx*(W-PL-PR),col=SC[d.sector],sign=d.avg>=0?"+":"";
+    r+=`<text x="${PL-8}" y="${y+bH/2+5}" text-anchor="end" font-size="12" fill="#94a3b8">${d.sector}</text>
+        <rect x="${PL}" y="${y}" width="${Math.max(2,bw)}" height="${bH}" fill="${col}" rx="4" opacity=".85"/>
+        <text x="${PL+bw+6}" y="${y+bH/2+5}" font-size="11" fill="${col}" font-weight="700">${sign}${d.avg}%</text>`;
+  });
+  return `<svg width="100%" viewBox="0 0 ${W} ${H}">${r}</svg>`;
+}
+
+function donutSVG(sd){
+  const sz=240,R=85,r=52,cx=sz/2,cy=sz/2,tot=sd.reduce((a,d)=>a+d.count,0)||1;
+  let ang=-Math.PI/2,sl="",lb="";
+  sd.forEach(d=>{
+    const a=(d.count/tot)*2*Math.PI,x1=cx+R*Math.cos(ang),y1=cy+R*Math.sin(ang);
+    ang+=a;
+    const x2=cx+R*Math.cos(ang),y2=cy+R*Math.sin(ang),mid=ang-a/2;
+    const ix=cx+r*Math.cos(ang-a),iy=cy+r*Math.sin(ang-a),ix2=cx+r*Math.cos(ang),iy2=cy+r*Math.sin(ang);
+    sl+=`<path d="M${ix} ${iy} L${x1} ${y1} A${R} ${R} 0 ${a>Math.PI?1:0} 1 ${x2} ${y2} L${ix2} ${iy2} A${r} ${r} 0 ${a>Math.PI?1:0} 0 ${ix} ${iy} Z" fill="${SC[d.sector]}" opacity=".85" stroke="#080b12" stroke-width="2"/>`;
+    lb+=`<text x="${cx+(R+22)*Math.cos(mid)}" y="${cy+(R+22)*Math.sin(mid)}" text-anchor="middle" font-size="9" fill="${SC[d.sector]}" font-weight="700">${d.sector} ${Math.round(d.count/tot*100)}%</text>`;
+  });
+  return `<svg width="${sz}" height="${sz}">${sl}${lb}
+    <text x="${cx}" y="${cy-6}" text-anchor="middle" font-size="24" font-weight="800" fill="#f1f5f9">${tot}</text>
+    <text x="${cx}" y="${cy+14}" text-anchor="middle" font-size="10" fill="#475569">stocks</text>
+  </svg>`;
+}
+
+function lineSVG(d,col){
+  const W=560,H=120,PT=10,PB=24,PL=36,PR=10,iW=W-PL-PR,iH=H-PT-PB;
+  const vals=d.map(x=>x.v),mn=Math.min(...vals),mx=Math.max(...vals),r=mx-mn||1;
+  const pts=d.map((x,i)=>`${PL+i/(d.length-1)*iW},${PT+iH-((x.v-mn)/r)*iH}`).join(" ");
+  return `<svg width="100%" viewBox="0 0 ${W} ${H}">
+    <defs><linearGradient id="lg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="${col}" stop-opacity=".2"/><stop offset="100%" stop-color="${col}" stop-opacity="0"/></linearGradient></defs>
+    <polyline fill="url(#lg)" stroke="none" points="${PL},${PT+iH} ${pts} ${PL+iW},${PT+iH}"/>
+    <polyline fill="none" stroke="${col}" stroke-width="2" points="${pts}"/>
+    <text x="${PL-4}" y="${PT+iH}" text-anchor="end" font-size="9" fill="#475569">${mn.toFixed(1)}</text>
+    <text x="${PL-4}" y="${PT+6}"  text-anchor="end" font-size="9" fill="#475569">${mx.toFixed(1)}</text>
+  </svg>`;
+}
+
+/* ── render ── */
+function init(){
+  const sd=document.getElementById("status");
+  if(LIVE){sd.className="live-dot";sd.textContent="● Live · "+(DATA.generated_date||"—");}
+  else{sd.className="demo-dot";sd.textContent="⚠ Demo mode";document.getElementById("banner").style.display="block";}
+  document.getElementById("subtitle").textContent=`NIGERIAN STOCK EXCHANGE · TOP ${stocks.length} · 3-MONTH WINDOW`;
+  renderCards();renderSecBtns();renderTable();renderCharts();renderSectors();
+}
+
+function renderCards(){
+  const best=stocks.find(s=>s.ticker===sum.best_ticker);
+  const ac=sum.avg_change||0;
+  document.getElementById("cards").innerHTML=[
+    {icon:"📈",label:"Top Gainer",  value:best?`+${best.change}%`:"—",       sub:best?best.ticker:"",          color:"#22c55e"},
+    {icon:"🟢",label:"Gainers",     value:sum.gainers||0,                     sub:`of ${stocks.length} tracked`, color:"#22c55e"},
+    {icon:"🔴",label:"Decliners",   value:sum.decliners||0,                   sub:"in the red",                  color:"#ef4444"},
+    {icon:"📊",label:"Avg 3M Gain", value:(ac>=0?"+":"")+ac.toFixed(2)+"%",  sub:"across all tracked",          color:ac>=0?"#22c55e":"#ef4444"},
+    {icon:"🕐",label:"Generated",   value:DATA.generated_date||"—",           sub:"run cargo run to update",     color:"#64748b"},
+  ].map(c=>`<div class="card"><div class="card-icon">${c.icon}</div><div class="card-label">${c.label}</div><div class="card-value mono" style="color:${c.color}">${c.value}</div><div class="card-sub">${c.sub}</div></div>`).join("");
+}
+
+function renderSecBtns(){
+  document.getElementById("secbtns").innerHTML=["All",...Object.keys(SC)].map(s=>{
+    const a=S.sector===s,col=SC[s]||"#fff";
+    return `<button class="sbtn" style="background:${a?col+"22":"transparent"};border-color:${a?col+"55":"#1e2535"};color:${a?col:"#64748b"}" onclick="setSec('${s}')">${s}</button>`;
+  }).join("");
+}
+
+function getRows(){
+  return stocks
+    .filter(s=>S.sector==="All"||s.sector===S.sector)
+    .filter(s=>s.ticker.toLowerCase().includes(S.search.toLowerCase())||s.name.toLowerCase().includes(S.search.toLowerCase()))
+    .sort((a,b)=>{
+      const d=S.sortDir==="asc"?1:-1;
+      if(S.sortBy==="rank")   return(a.rank-b.rank)*d;
+      if(S.sortBy==="ticker") return a.ticker.localeCompare(b.ticker)*d;
+      if(S.sortBy==="name")   return a.name.localeCompare(b.name)*d;
+      if(S.sortBy==="sector") return a.sector.localeCompare(b.sector)*d;
+      if(S.sortBy==="change") return(a.change-b.change)*d;
+      if(S.sortBy==="price")  return(a.price-b.price)*d;
+      if(S.sortBy==="vol")    return(a.vol-b.vol)*d;
+      return 0;
+    });
+}
+
+function renderTable(){
+  ["rank","ticker","name","sector","price","change","vol"].forEach(c=>{
+    const el=document.getElementById("a-"+c);
+    if(!el)return;
+    el.textContent=S.sortBy===c?(S.sortDir==="asc"?"▲":"▼"):"⇅";
+    el.style.opacity=S.sortBy===c?"1":"0.3";
+  });
+  document.getElementById("tbody").innerHTML=getRows().map((s,i)=>{
+    const pos=s.change>=0,col=SC[s.sector],medals=["🥇","🥈","🥉"];
+    const hl=S.sel===s.ticker?"background:#111827!important":"";
+    return `<tr style="${hl}" onclick="selRow('${s.ticker}')">
+      <td class="mono" style="color:#475569">${s.rank<=3?medals[s.rank-1]:s.rank}</td>
+      <td><span class="mono" style="font-weight:700;color:#f1f5f9">${s.ticker}</span></td>
+      <td style="color:#94a3b8;max-width:210px"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block">${s.name}</span></td>
+      <td><span class="badge" style="background:${col}22;color:${col};border:1px solid ${col}44">${s.sector}</span></td>
+      <td style="text-align:right" class="mono"><strong>₦${s.price.toLocaleString()}</strong></td>
+      <td style="text-align:right"><span class="pill ${pos?"up":"dn"}">${pos?"+":""}${s.change.toFixed(2)}%</span></td>
+      <td style="text-align:right;color:#64748b" class="mono">${s.vol}M</td>
+      <td style="padding:11px 20px 11px 14px">${sparkSVG(s.sparkline,pos)}</td>
+    </tr>`;
+  }).join("");
+  renderDetail();
+}
+
+function renderDetail(){
+  const det=document.getElementById("detail");
+  if(!S.sel){det.style.display="none";return;}
+  const s=stocks.find(x=>x.ticker===S.sel);
+  if(!s){det.style.display="none";return;}
+  const col=SC[s.sector],pos=s.change>=0;
+  det.style.display="block";det.style.border=`1px solid ${col}44`;
+  det.innerHTML=`
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;flex-wrap:wrap;gap:10px">
+      <div>
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
+          <span class="mono" style="font-size:22px;font-weight:800">${s.ticker}</span>
+          <span class="badge" style="background:${col}22;color:${col};border:1px solid ${col}44">${s.sector}</span>
+        </div>
+        <div style="color:#64748b;font-size:14px">${s.name}</div>
+      </div>
+      <button class="btn" onclick="selRow('${s.ticker}')">✕ Close</button>
+    </div>
+    <div class="detail-stats">
+      ${[["Current Price","₦"+s.price.toLocaleString(),"#f1f5f9"],["3M Ago","₦"+s.prev.toLocaleString(),"#94a3b8"],
+         ["Change",(pos?"+":"")+s.change.toFixed(2)+"%",pos?"#22c55e":"#ef4444"],
+         ["Avg Volume",s.vol+"M","#f59e0b"],["Rank","#"+s.rank+" / "+stocks.length,"#3b82f6"]]
+        .map(([l,v,c])=>`<div class="dstat"><div class="dstat-label">${l}</div><div class="dstat-value mono" style="color:${c}">${v}</div></div>`).join("")}
+    </div>
+    ${s.sparkline&&s.sparkline.length>1?lineSVG(s.sparkline.map((v,i)=>({v})),col):""}`;
+}
+
+function renderCharts(){
+  const sd=Object.keys(SC).map(s=>{const g=stocks.filter(x=>x.sector===s);return{sector:s,avg:g.length?+(g.reduce((a,x)=>a+x.change,0)/g.length).toFixed(2):0,count:g.length};});
+  document.getElementById("c-bar").innerHTML=barSVG(stocks);
+  document.getElementById("c-hbar").innerHTML=hBarSVG(sd);
+  document.getElementById("c-donut").innerHTML=donutSVG(sd);
+}
+
+function renderSectors(){
+  document.getElementById("secgrid").innerHTML=Object.keys(SC).map(sec=>{
+    const g=stocks.filter(s=>s.sector===sec),col=SC[sec];
+    const avg=g.length?(g.reduce((a,s)=>a+s.change,0)/g.length).toFixed(2):"0.00";
+    const best=g.reduce((b,s)=>s.change>b.change?s:b,g[0]||{ticker:"—",change:0});
+    const worst=g.reduce((b,s)=>s.change<b.change?s:b,g[0]||{ticker:"—",change:0});
+    const apos=parseFloat(avg)>=0;
+    return `<div class="sec-card" style="border:1px solid ${col}33">
+      <div style="position:absolute;top:-30px;right:-30px;width:120px;height:120px;background:${col}11;border-radius:50%"></div>
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px">
+        <div><div style="color:${col};font-size:16px;font-weight:800;margin-bottom:2px">${sec}</div><div style="color:#475569;font-size:12px">${g.length} stocks</div></div>
+        <span class="pill ${apos?"up":"dn"}">${apos?"+":""}${avg}%</span>
+      </div>
+      ${g.map(s=>`<div class="sec-row"><span class="mono" style="color:#94a3b8">${s.ticker}</span><span class="mono" style="color:${s.change>=0?"#22c55e":"#ef4444"};font-weight:700">${s.change>=0?"+":""}${s.change.toFixed(2)}%</span></div>`).join("")}
+      <div style="display:flex;gap:8px;margin-top:12px">
+        <div style="flex:1;background:rgba(34,197,94,.07);border-radius:7px;padding:8px 10px">
+          <div style="font-size:10px;color:#475569;text-transform:uppercase;margin-bottom:2px">Best</div>
+          <div class="mono" style="color:#22c55e;font-size:12px;font-weight:700">${best.ticker} ${best.change>=0?"+":""}${best.change.toFixed(1)}%</div>
+        </div>
+        <div style="flex:1;background:rgba(239,68,68,.07);border-radius:7px;padding:8px 10px">
+          <div style="font-size:10px;color:#475569;text-transform:uppercase;margin-bottom:2px">Worst</div>
+          <div class="mono" style="color:#ef4444;font-size:12px;font-weight:700">${worst.ticker} ${worst.change.toFixed(1)}%</div>
+        </div>
+      </div>
+    </div>`;
+  }).join("");
+}
+
+/* ── handlers ── */
+function switchTab(id,btn){
+  ["table","charts","sectors"].forEach(t=>document.getElementById("tab-"+t).style.display=t===id?"block":"none");
+  document.querySelectorAll(".tab").forEach(b=>b.classList.remove("active"));
+  if(btn)btn.classList.add("active");
+}
+function setSec(s){S.sector=s;renderSecBtns();renderTable();}
+function srt(col){if(S.sortBy===col)S.sortDir=S.sortDir==="asc"?"desc":"asc";else{S.sortBy=col;S.sortDir="desc";}renderTable();}
+function selRow(t){S.sel=S.sel===t?null:t;renderTable();}
+
+/* ── notifications ── */
+function toggleBell(){document.getElementById("bell-panel").classList.toggle("open");}
+document.addEventListener("click",e=>{if(!document.getElementById("bell-wrap").contains(e.target))document.getElementById("bell-panel").classList.remove("open");});
+
+function pushAlert(body,type){
+  S.alerts.unshift({id:Date.now()+Math.random(),time:new Date().toLocaleTimeString(),body,type});
+  if(S.alerts.length>20)S.alerts.pop();
+  const cnt=document.getElementById("bell-count");
+  cnt.style.display="flex";cnt.textContent=S.alerts.length>9?"9+":S.alerts.length;
+  document.getElementById("alerts-list").innerHTML=S.alerts.map(a=>`
+    <div class="alert-item">
+      <div class="alert-dot" style="background:${a.type==="up"?"#22c55e":a.type==="down"?"#ef4444":"#3b82f6"}"></div>
+      <div><div style="color:#e2e8f0;font-size:12px">${a.body}</div><div style="color:#475569;font-size:11px;margin-top:2px">${a.time}</div></div>
+    </div>`).join("");
+}
+
+async function enableNotif(){
+  if(!("Notification"in window)){alert("Browser does not support notifications.");return;}
+  if(await Notification.requestPermission()==="granted"){
+    S.notifOn=true;
+    document.getElementById("bell-btn").style.background="rgba(34,197,94,0.15)";
+    document.getElementById("bell-btn").style.borderColor="#22c55e55";
+    document.getElementById("bell-label").textContent="Alerts ON";
+    const nb=document.getElementById("notif-btn");nb.className="btn-red";nb.textContent="Disable";nb.onclick=disableNotif;
+    pushAlert("✅ Alerts ON — threshold ≥"+document.getElementById("thr").value+"%","info");
+    startPoll();
+  }
+}
+function disableNotif(){
+  S.notifOn=false;clearInterval(S.timer);
+  document.getElementById("bell-btn").style.background="rgba(255,255,255,0.05)";
+  document.getElementById("bell-btn").style.borderColor="#ffffff22";
+  document.getElementById("bell-label").textContent="Enable Alerts";
+  const nb=document.getElementById("notif-btn");nb.className="btn-green";nb.textContent="Enable Browser Notifications";nb.onclick=enableNotif;
+}
+function startPoll(){
+  clearInterval(S.timer);
+  S.timer=setInterval(()=>{
+    const thr=+document.getElementById("thr").value;
+    stocks.filter(s=>Math.abs(s.change)>=thr).slice(0,3).forEach(s=>{
+      const body=`${s.change>=0?"📈":"📉"} ${s.ticker}: ${s.change>=0?"+":""}${s.change.toFixed(2)}% | ₦${s.price.toLocaleString()}`;
+      new Notification("🇳🇬 NGX Alert",{body});
+      pushAlert(body,s.change>=0?"up":"down");
+    });
+  },30000);
+}
+function demoAlerts(){
+  [...stocks].sort((a,b)=>Math.abs(b.change)-Math.abs(a.change)).slice(0,5).forEach((s,i)=>
+    setTimeout(()=>{
+      const body=`${s.change>=0?"📈":"📉"} ${s.ticker}: ${s.change>=0?"+":""}${s.change.toFixed(2)}% | ₦${s.price.toLocaleString()}`;
+      if(S.notifOn)new Notification("🇳🇬 NGX Alert",{body});
+      pushAlert(body,s.change>=0?"up":"down");
+    },i*400)
+  );
+}
+
+init();
+</script>
+</body>
+</html>
