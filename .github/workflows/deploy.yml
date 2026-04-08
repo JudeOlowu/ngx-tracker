@@ -1,0 +1,62 @@
+name: Build and Deploy NGX Radar
+
+on:
+  # Auto-run during Nigerian trading hours (WAT = UTC+1)
+  # 9am, 11am, 1pm, 3pm, 5pm WAT = 8,10,12,14,16 UTC
+  schedule:
+    - cron: '0 8,10,12,14,16 * * 1-5'
+  # Also run on every git push
+  push:
+    branches: [main]
+  # Allow manual trigger from GitHub UI
+  workflow_dispatch:
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Run NGX screener and generate dashboard
+        run: cargo run
+        env:
+          RUST_LOG: info
+
+      - name: Prepare for deployment
+        run: |
+          cp ngx_live.html index.html
+          echo "Generated at: $(date)" >> build_log.txt
+          echo "Branch: ${{ github.ref_name }}" >> build_log.txt
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./
+          publish_branch: gh-pages
+          include_files: index.html
+          commit_message: "🇳🇬 Auto-update NGX data - ${{ github.run_id }}"
+
+      - name: Summary
+        run: |
+          echo "✅ NGX Radar deployed successfully"
+          echo "🌐 Live at: https://JudeOlowu.github.io/ngx-tracker"
+          echo "🕐 Next auto-update: next scheduled run"
