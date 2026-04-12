@@ -5,1032 +5,504 @@ use std::fs;
 use crate::models::Stock;
 
 const HTML_TEMPLATE: &str = r##"<!DOCTYPE html>
-<!-- AUDIT FIX [8.3]: lang attribute present -->
 <html lang="en" data-theme="dark">
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-
-<!-- AUDIT FIX [8.1]: Open Graph + Twitter cards + meta description -->
-<title>NGX Radar 🇳🇬 — Nigerian Stock Exchange Tracker</title>
-<meta name="description" content="Real-time Nigerian Exchange (NGX) stock tracker. Top 30 performers, insider buy/sell signals, 2026 dividend calendar, and FY2025 earnings data."/>
-<meta property="og:title" content="NGX Radar — Nigerian Stock Exchange Tracker"/>
-<meta property="og:description" content="Top 30 NGX stocks, insider signals, dividend calendar and live earnings data. Built for Nigerian investors."/>
-<meta property="og:type" content="website"/>
-<meta property="og:image" content="https://flagcdn.com/w320/ng.png"/>
-<meta property="og:site_name" content="NGX Radar"/>
-<meta name="twitter:card" content="summary_large_image"/>
-<meta name="twitter:title" content="NGX Radar — Nigerian Stock Exchange Tracker"/>
-<meta name="twitter:description" content="Top 30 NGX stocks, insider signals, dividend calendar and live earnings data."/>
-<meta name="twitter:image" content="https://flagcdn.com/w320/ng.png"/>
-
-<!-- AUDIT FIX [10.2]: Favicon placeholder — replace with real .ico -->
-<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🇳🇬</text></svg>"/>
-<link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🇳🇬</text></svg>"/>
-
-<!-- AUDIT FIX [10.3]: Block theme flash before CSS loads -->
-<script>
-(function(){
-  var t=localStorage.getItem('ngx-theme')||'dark';
-  document.documentElement.setAttribute('data-theme',t);
-})();
-</script>
-
+<title>NGX Radar 🇳🇬</title>
+<script>(function(){try{var t=localStorage.getItem('ngx-theme')||'dark';document.documentElement.setAttribute('data-theme',t);}catch(e){}}());</script>
 <style>
-/* ── AUDIT FIX [1.2]: Full CSS variable colour system ── */
-:root[data-theme="dark"]{
-  --bg:#080b12;--bg2:#0d1117;--bg3:#111827;--bg4:#0a0e17;
-  --border:#1e2535;--border2:#151e2d;
-  --text:#e2e8f0;--text2:#94a3b8;--text3:#64748b;--text4:#475569;
-  --green:#22c55e;--red:#ef4444;--amber:#f59e0b;--blue:#3b82f6;--purple:#a855f7;
-  --card-bg:linear-gradient(135deg,#0f1117,#111827);
-  --shadow:rgba(0,0,0,.5);
-  --focus-ring:0 0 0 3px rgba(34,197,94,.45);
-}
-:root[data-theme="light"]{
-  --bg:#f1f5f9;--bg2:#ffffff;--bg3:#f8fafc;--bg4:#f1f5f9;
-  --border:#e2e8f0;--border2:#cbd5e1;
-  /* AUDIT FIX [5.4]: Light mode text colours pass WCAG AA (4.5:1) */
-  --text:#0f172a;--text2:#334155;--text3:#475569;--text4:#64748b;
-  --green:#16a34a;--red:#dc2626;--amber:#b45309;--blue:#1d4ed8;--purple:#7c3aed;
-  --card-bg:linear-gradient(135deg,#ffffff,#f8fafc);
-  --shadow:rgba(0,0,0,.1);
-  --focus-ring:0 0 0 3px rgba(22,163,74,.45);
-}
+:root[data-theme="dark"]{--bg:#080b12;--bg2:#0d1117;--bg3:#111827;--border:#1e2535;--border2:#151e2d;--text:#e2e8f0;--text2:#94a3b8;--text3:#64748b;--text4:#475569;--green:#22c55e;--red:#ef4444;--amber:#f59e0b;--blue:#3b82f6;--purple:#a855f7;--shadow:rgba(0,0,0,.5)}
+:root[data-theme="light"]{--bg:#f1f5f9;--bg2:#fff;--bg3:#f8fafc;--border:#e2e8f0;--border2:#cbd5e1;--text:#0f172a;--text2:#334155;--text3:#475569;--text4:#64748b;--green:#16a34a;--red:#dc2626;--amber:#b45309;--blue:#1d4ed8;--purple:#7c3aed;--shadow:rgba(0,0,0,.1)}
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-html,body{background:var(--bg);color:var(--text);font-family:'Segoe UI',Arial,sans-serif;min-height:100vh;transition:background .2s,color .2s}
-::-webkit-scrollbar{width:4px;height:4px}
-::-webkit-scrollbar-track{background:var(--bg2)}
-::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+html,body{background:var(--bg);color:var(--text);font-family:'Segoe UI',Arial,sans-serif;min-height:100vh}
+::-webkit-scrollbar{width:4px;height:4px}::-webkit-scrollbar-track{background:var(--bg2)}::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
 button,input{font-family:inherit}
 .mono{font-family:'Courier New',monospace}
-
-/* AUDIT FIX [1.5] + [5.5]: prefers-reduced-motion disables ALL animations */
-@keyframes fadeIn{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
-@keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+@keyframes fadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
 .fade{animation:fadeIn .2s ease forwards}
-.pulse{animation:pulse 2s infinite}
-@media(prefers-reduced-motion:reduce){
-  .fade{animation:none}
-  .pulse{animation:none}
-  *{transition-duration:.01ms!important;animation-duration:.01ms!important}
-}
-
-/* AUDIT FIX [5.2]: :focus-visible styles for keyboard navigation */
-:focus-visible{outline:none;box-shadow:var(--focus-ring)!important;border-radius:4px}
-button:focus-visible,a:focus-visible,[tabindex]:focus-visible{outline:none;box-shadow:var(--focus-ring)}
-
-/* HEADER */
-#site-header{background:var(--bg2);border-bottom:1px solid var(--border);padding:0 14px;position:sticky;top:0;z-index:50;box-shadow:0 2px 12px var(--shadow)}
+@media(prefers-reduced-motion:reduce){.fade{animation:none}}
+#hdr{background:var(--bg2);border-bottom:1px solid var(--border);padding:0 14px;position:sticky;top:0;z-index:50;box-shadow:0 2px 8px var(--shadow)}
 #hdr-in{max-width:1400px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;padding:10px 0;gap:8px;flex-wrap:wrap}
-.logo{display:flex;align-items:center;gap:9px;text-decoration:none}
-.logo-icon{width:34px;height:34px;border-radius:8px;background:linear-gradient(135deg,#16a34a,#15803d);display:flex;align-items:center;justify-content:center;font-size:17px;box-shadow:0 3px 10px #16a34a44;flex-shrink:0}
-.logo-title{font-size:15px;font-weight:800;letter-spacing:-.4px;color:var(--text)}
+.logo{display:flex;align-items:center;gap:9px}
+.logo-icon{width:34px;height:34px;border-radius:8px;background:linear-gradient(135deg,#16a34a,#15803d);display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0}
+.logo-title{font-size:15px;font-weight:800;color:var(--text)}
 .logo-sub{font-size:10px;color:var(--text3)}
-.hdr-right{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
-
-/* STATUS */
-.status-live{background:rgba(34,197,94,.1);border:1px solid var(--green)33;border-radius:5px;padding:3px 9px;font-size:11px;color:var(--green)}
-.status-demo{background:rgba(245,158,11,.1);border:1px solid var(--amber)33;border-radius:5px;padding:3px 9px;font-size:11px;color:var(--amber)}
-
-/* AUDIT FIX [3.2]: Theme toggle — minimum 44px touch targets */
-.theme-toggle{background:var(--bg3);border:1px solid var(--border);border-radius:20px;padding:4px;display:flex;gap:2px;cursor:pointer;min-height:44px;align-items:center}
-.theme-btn{border:none;background:transparent;border-radius:16px;min-width:44px;min-height:36px;font-size:16px;cursor:pointer;transition:background .15s;color:var(--text3);display:flex;align-items:center;justify-content:center}
-.theme-btn.active{background:var(--bg2);box-shadow:0 1px 4px var(--shadow);color:var(--text)}
-
-/* MAIN */
-#main-content{max-width:1400px;margin:0 auto;padding:14px}
-
-/* BANNER */
-.banner{background:rgba(245,158,11,.06);border:1px solid var(--amber)33;border-radius:10px;padding:12px 14px;margin-bottom:14px;display:none}
-.banner-title{color:var(--amber);font-weight:700;font-size:13px;margin-bottom:5px}
-.banner p{color:var(--text2);font-size:12px;line-height:1.6;margin-top:2px}
-code{font-family:'Courier New',monospace;background:var(--bg3);padding:1px 5px;border-radius:3px;color:var(--green);font-size:11px}
-
-/* CARDS */
-.cards{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:14px}
-.card{background:var(--card-bg);border:1px solid var(--border);border-radius:9px;padding:12px 14px;position:relative;overflow:hidden}
-.card-icon{position:absolute;top:-10px;right:-10px;font-size:48px;opacity:.06;pointer-events:none;user-select:none;aria-hidden:true}
-.card-label{color:var(--text3);font-size:10px;text-transform:uppercase;letter-spacing:1px;margin-bottom:3px}
-.card-value{font-size:17px;font-weight:800;margin-bottom:1px;line-height:1.2;color:var(--text)}
-.card-sub{color:var(--text4);font-size:11px}
-
-/* AUDIT FIX [5.1]: role="tablist" applied via JS; tabs styled correctly */
+.hdr-r{display:flex;align-items:center;gap:7px}
+.s-live{background:rgba(34,197,94,.1);border:1px solid #22c55e44;border-radius:5px;padding:3px 9px;font-size:11px;color:var(--green)}
+.s-demo{background:rgba(245,158,11,.1);border:1px solid #f59e0b44;border-radius:5px;padding:3px 9px;font-size:11px;color:var(--amber)}
+.tt{background:var(--bg3);border:1px solid var(--border);border-radius:20px;padding:3px;display:flex;gap:2px}
+.tb{border:none;background:transparent;border-radius:16px;min-width:36px;min-height:36px;font-size:15px;cursor:pointer;color:var(--text3)}
+.tb.on{background:var(--bg2);box-shadow:0 1px 4px var(--shadow);color:var(--text)}
+#main{max-width:1400px;margin:0 auto;padding:14px}
+.banner{background:rgba(245,158,11,.06);border:1px solid #f59e0b33;border-radius:10px;padding:12px 14px;margin-bottom:14px;display:none;font-size:12px;color:var(--text2);line-height:1.6}
+.banner strong{color:var(--amber)}
+code{font-family:monospace;background:var(--bg3);padding:1px 5px;border-radius:3px;color:var(--green);font-size:11px}
+.cards{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px}
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:9px;padding:12px 14px;overflow:hidden;position:relative}
+.ci{position:absolute;top:-8px;right:-8px;font-size:42px;opacity:.05;pointer-events:none}
+.cl{color:var(--text3);font-size:10px;text-transform:uppercase;letter-spacing:1px;margin-bottom:2px}
+.cv{font-size:17px;font-weight:800;line-height:1.2}
+.cs{color:var(--text4);font-size:11px;margin-top:1px}
 .tabs{display:flex;border-bottom:1px solid var(--border);margin-bottom:14px;overflow-x:auto;-webkit-overflow-scrolling:touch}
-.tab{background:none;border:none;cursor:pointer;color:var(--text3);padding:10px 14px;font-size:13px;border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap;flex-shrink:0;transition:color .15s;/* AUDIT FIX [3.2]: min touch target */min-height:44px}
-.tab.active{color:var(--green);font-weight:700;border-bottom-color:var(--green)}
-
-/* TODAY FEED */
-.today-feed{display:flex;flex-direction:column;gap:8px}
-.today-item{background:var(--bg2);border:1px solid var(--border);border-radius:9px;padding:12px 14px;border-left:3px solid var(--green)}
-.today-item.alert-earnings{border-left-color:var(--blue)}
-.today-item.alert-dividend{border-left-color:var(--amber)}
-.today-item.alert-insider{border-left-color:var(--purple)}
-.today-item.alert-buy{border-left-color:var(--green)}
-
-/* COMPANY LOGO — AUDIT FIX [3.5]: loading="lazy" applied in JS */
-.co-logo{width:32px;height:32px;border-radius:6px;object-fit:contain;background:var(--bg3);border:1px solid var(--border);padding:3px;flex-shrink:0}
-.co-logo-fallback{width:32px;height:32px;border-radius:6px;background:var(--green)22;border:1px solid var(--green)33;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:var(--green);flex-shrink:0;aria-hidden:true}
-
-/* AUDIT FIX [7.2 UX]: Search has a visible label wrapper */
-.search-wrap{position:relative;width:100%}
-.search-label{display:block;font-size:11px;color:var(--text3);margin-bottom:4px;text-transform:uppercase;letter-spacing:.8px}
-.filters{display:flex;flex-direction:column;gap:9px;margin-bottom:11px}
-.search{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:10px 13px;color:var(--text);font-size:14px;width:100%;outline:none;-webkit-appearance:none}
-.search:focus{border-color:var(--green)55}
+.tab{background:none;border:none;cursor:pointer;color:var(--text3);padding:10px 13px;font-size:13px;border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap;min-height:44px;transition:color .15s}
+.tab.on{color:var(--green);font-weight:700;border-bottom-color:var(--green)}
+.today-list{display:flex;flex-direction:column;gap:8px}
+.tc{background:var(--bg2);border:1px solid var(--border);border-radius:9px;padding:12px 14px;border-left:3px solid var(--green)}
+.tc.ins{border-left-color:var(--purple)}.tc.div{border-left-color:var(--amber)}.tc.ear{border-left-color:var(--blue)}
+.co-logo{width:28px;height:28px;border-radius:5px;object-fit:contain;background:var(--bg3);border:1px solid var(--border);padding:2px;flex-shrink:0}
+.co-fb{width:28px;height:28px;border-radius:5px;background:rgba(34,197,94,.12);border:1px solid rgba(34,197,94,.2);display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:800;color:var(--green);flex-shrink:0}
+.filters{display:flex;flex-direction:column;gap:8px;margin-bottom:10px}
+.slbl{font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:3px}
+.search{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:10px 13px;color:var(--text);font-size:13px;width:100%;outline:none;-webkit-appearance:none}
+.search:focus{border-color:rgba(34,197,94,.4)}
 .secbtns{display:flex;gap:5px;flex-wrap:wrap}
-/* AUDIT FIX [3.2]: sector buttons 44px tall */
-.sbtn{border-radius:6px;padding:0 11px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid var(--border);background:transparent;color:var(--text3);white-space:nowrap;min-height:44px}
-
-/* MOBILE STOCK CARDS */
+.sbtn{border-radius:6px;padding:0 11px;min-height:38px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid var(--border);background:transparent;color:var(--text3);white-space:nowrap}
 .slist{display:flex;flex-direction:column;gap:7px}
 .scard{background:var(--bg2);border:1px solid var(--border);border-radius:9px;padding:11px 13px;cursor:pointer;transition:border-color .15s}
-.scard.sel{border-color:#334155}
-.scard-top{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:7px}
-.scard-bottom{display:flex;align-items:center;justify-content:space-between;padding-top:7px;border-top:1px solid var(--border2)}
-
-/* DESKTOP TABLE */
+.scard:hover{border-color:var(--text3)}
+.scard-t{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:7px}
+.scard-b{display:flex;align-items:center;justify-content:space-between;padding-top:7px;border-top:1px solid var(--border2)}
 .tbl-wrap{display:none;background:var(--bg2);border:1px solid var(--border);border-radius:11px;overflow:hidden}
-.tbl-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.tbl-scroll{overflow-x:auto}
 table{width:100%;border-collapse:collapse;font-size:13px}
-/* AUDIT FIX [5.1]: table caption for screen readers */
-caption{clip:rect(0 0 0 0);clip-path:inset(50%);height:1px;overflow:hidden;position:absolute;white-space:nowrap;width:1px}
+caption{position:absolute;width:1px;height:1px;overflow:hidden}
 thead tr{background:var(--bg)}
 th{padding:10px 11px;color:var(--text3);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.7px;white-space:nowrap;cursor:pointer}
 th:hover{color:var(--text2)}
-tbody tr{border-top:1px solid var(--bg4);cursor:pointer}
-tbody tr:nth-child(even){background:var(--bg3)}
-tbody tr:hover td,tbody tr.sel td{background:var(--bg3)}
+tbody tr{border-top:1px solid var(--bg3);cursor:pointer}
+tbody tr:hover td{background:var(--bg3)}
+tbody tr.sel td{background:var(--bg3)}
 td{padding:9px 11px}
-
-/* BADGES */
-.badge{border-radius:4px;padding:2px 7px;font-size:11px;font-weight:600;white-space:nowrap}
 .pill{padding:3px 7px;border-radius:4px;font-weight:700;font-size:12px}
-.pill.up{background:rgba(34,197,94,.12);color:var(--green)}
-.pill.dn{background:rgba(239,68,68,.12);color:var(--red)}
+.up{background:rgba(34,197,94,.12);color:var(--green)}
+.dn{background:rgba(239,68,68,.12);color:var(--red)}
 .pill.lg{font-size:13px;padding:4px 9px}
-
-/* SIGNAL STRENGTH */
-.signal-bar{display:flex;gap:2px;align-items:center}
-.signal-dot{width:7px;height:7px;border-radius:50%;background:var(--border)}
-.signal-dot.on.g{background:var(--green)}
-.signal-dot.on.a{background:var(--amber)}
-.signal-dot.on.r{background:var(--red)}
-
-/* DETAIL + CARDS */
-#detail{margin-top:11px;border-radius:10px;padding:14px;background:var(--bg2);display:none}
-.dstats{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:12px}
+.badge{border-radius:4px;padding:2px 7px;font-size:11px;font-weight:600}
+.sig{display:flex;gap:2px;align-items:center}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--border)}
+.dot.g{background:var(--green)}.dot.a{background:var(--amber)}.dot.r{background:var(--red)}
+#detail{display:none;margin-top:10px;border-radius:10px;padding:14px;background:var(--bg2)}
+.dstats{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:11px}
 .dstat{background:var(--bg);border-radius:7px;padding:9px 11px}
-.dstat-label{color:var(--text3);font-size:10px;text-transform:uppercase;letter-spacing:.7px;margin-bottom:2px}
-.dstat-value{font-size:15px;font-weight:800}
-
-/* CHARTS */
-.charts-grid{display:grid;grid-template-columns:1fr;gap:13px}
-.chart-box{background:var(--bg2);border:1px solid var(--border);border-radius:11px;padding:14px}
-.chart-title{color:var(--text3);font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:10px}
-
-/* SECTORS */
-.sec-grid{display:grid;grid-template-columns:1fr;gap:11px}
-.sec-card{border-radius:11px;padding:14px;position:relative;overflow:hidden;background:var(--bg2)}
-.sec-row{display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--border2);font-size:12px}
-
-/* EARNINGS */
-.earnings-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px}
-.earnings-card{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:14px}
-
-/* INSIDER */
-.insider-card{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:8px}
-.insider-card.buy{border-left:3px solid var(--green)}
-.insider-card.sell{border-left:3px solid var(--red)}
-
-/* BELL */
-#bell-wrap{position:relative}
-/* AUDIT FIX [3.2]: bell button 44px min */
-.bell-btn{border-radius:7px;padding:0 12px;min-height:44px;color:var(--text);cursor:pointer;display:flex;align-items:center;gap:5px;font-size:14px;background:var(--bg3);border:1px solid var(--border)}
-#bell-panel{display:none;position:fixed;right:10px;top:60px;width:min(330px,calc(100vw - 20px));z-index:200;background:var(--bg2);border:1px solid var(--border);border-radius:11px;overflow:hidden;box-shadow:0 18px 50px var(--shadow)}
-#bell-panel.open{display:block}
-.alert-item{padding:9px 14px;border-bottom:1px solid var(--border2);display:flex;gap:8px;align-items:flex-start}
-
-/* BUTTONS */
-.btn{background:var(--bg3);border:1px solid var(--border);border-radius:5px;padding:5px 9px;color:var(--text2);font-size:12px;cursor:pointer;min-height:36px}
-.btn-green{background:linear-gradient(135deg,#22c55e,#16a34a);border:none;border-radius:7px;padding:10px 0;color:#fff;font-size:13px;font-weight:700;cursor:pointer;width:100%;min-height:44px}
-.btn-red{background:rgba(239,68,68,.15);border:1px solid #ef444455;border-radius:7px;padding:10px 0;color:var(--red);font-size:13px;cursor:pointer;width:100%;min-height:44px}
-.btn-blue{background:rgba(59,130,246,.15);border:1px solid #3b82f655;border-radius:7px;padding:10px 12px;color:var(--blue);font-size:13px;cursor:pointer;min-height:44px}
-
-/* AUDIT FIX [6.2 UX]: Empty state for search no-results */
-.empty-state{display:none;text-align:center;padding:40px 20px;color:var(--text3)}
-.empty-state svg{margin-bottom:10px;opacity:.4}
-.empty-state-title{font-size:14px;font-weight:600;color:var(--text2);margin-bottom:6px}
-.empty-state-sub{font-size:12px;color:var(--text3)}
-
-/* AUDIT FIX [9.2]: Footer with legal links */
-#site-footer{border-top:1px solid var(--border);padding:20px 14px;margin-top:24px}
-#site-footer-inner{max-width:1400px;margin:0 auto;display:flex;flex-wrap:wrap;gap:12px;justify-content:space-between;align-items:center}
-.footer-links{display:flex;gap:14px;flex-wrap:wrap}
-.footer-link{color:var(--text3);font-size:12px;text-decoration:none}
-.footer-link:hover{color:var(--text2);text-decoration:underline}
-.footer-copy{color:var(--text4);font-size:11px}
-
-/* RESPONSIVE */
-@media(min-width:600px){
-  .cards{grid-template-columns:repeat(3,1fr)}
-  .filters{flex-direction:row;align-items:flex-end}
-  .search-wrap{width:260px}
-  .dstats{grid-template-columns:repeat(3,1fr)}
-}
-@media(min-width:900px){
-  #main-content{padding:20px 24px}
-  .cards{grid-template-columns:repeat(5,1fr)}
-  .slist{display:none}
-  .tbl-wrap{display:block}
-  .charts-grid{grid-template-columns:1fr 1fr}
-  .chart-box.full{grid-column:1/-1}
-  .sec-grid{grid-template-columns:repeat(auto-fill,minmax(260px,1fr))}
-  .dstats{grid-template-columns:repeat(5,1fr)}
-  .earnings-grid{grid-template-columns:repeat(auto-fill,minmax(280px,1fr))}
-}
-
-/* AUDIT FIX [6.5 UX]: Skip to main content for screen readers */
-.skip-link{position:absolute;top:-40px;left:0;background:var(--green);color:#fff;padding:8px;z-index:100;border-radius:0 0 4px 0}
-.skip-link:focus{top:0}
+.dslbl{color:var(--text3);font-size:10px;text-transform:uppercase;letter-spacing:.7px;margin-bottom:2px}
+.dsval{font-size:15px;font-weight:800}
+.charts-grid{display:grid;grid-template-columns:1fr;gap:12px}
+.cbox{background:var(--bg2);border:1px solid var(--border);border-radius:11px;padding:14px}
+.ctitle{color:var(--text3);font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:10px}
+.sgrid{display:grid;grid-template-columns:1fr;gap:10px}
+.ssc{background:var(--bg2);border:1px solid var(--border);border-radius:11px;padding:14px;overflow:hidden;position:relative}
+.sr{display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--border2);font-size:12px}
+.egrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:11px}
+.ec{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:14px}
+.ic{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:8px}
+.ic.buy{border-left:3px solid var(--green)}.ic.sell{border-left:3px solid var(--red)}
+.empty{display:none;text-align:center;padding:36px 20px;color:var(--text3)}
+footer{border-top:1px solid var(--border);padding:16px 14px;margin-top:20px}
+.fin{max-width:1400px;margin:0 auto;display:flex;flex-wrap:wrap;gap:10px;justify-content:space-between;align-items:center}
+footer a{color:var(--text3);font-size:12px;text-decoration:none}
+footer a:hover{color:var(--text2);text-decoration:underline}
+.btn{background:var(--bg3);border:1px solid var(--border);border-radius:5px;padding:5px 9px;color:var(--text2);font-size:12px;cursor:pointer}
+@media(min-width:600px){.cards{grid-template-columns:repeat(3,1fr)}.filters{flex-direction:row;align-items:flex-end}.sw{width:250px}.dstats{grid-template-columns:repeat(3,1fr)}}
+@media(min-width:900px){#main{padding:20px 24px}.cards{grid-template-columns:repeat(5,1fr)}.slist{display:none}.tbl-wrap{display:block}.charts-grid{grid-template-columns:1fr 1fr}.cbox.full{grid-column:1/-1}.sgrid{grid-template-columns:repeat(auto-fill,minmax(260px,1fr))}.dstats{grid-template-columns:repeat(5,1fr)}}
 </style>
 </head>
 <body>
-
-<!-- AUDIT FIX [6.5 UX]: Skip navigation link -->
-<a class="skip-link" href="#main-content">Skip to main content</a>
-
-<!-- AUDIT FIX [5.1]: Semantic <header> element -->
-<header id="site-header" role="banner">
-  <div id="hdr-in">
-    <a class="logo" href="/" aria-label="NGX Radar home">
-      <div class="logo-icon" aria-hidden="true">🇳🇬</div>
-      <div>
-        <!-- AUDIT FIX [8.4]: H1 as the primary site heading -->
-        <h1 class="logo-title">NGX Radar</h1>
-        <p class="logo-sub" id="subtitle">NIGERIAN STOCK EXCHANGE</p>
-      </div>
-    </a>
-    <div class="hdr-right">
-      <div id="status" class="status-demo" role="status" aria-live="polite">⚠ Demo</div>
-
-      <!-- AUDIT FIX [3.2] + [5.3]: Theme toggle with aria-labels and 44px targets -->
-      <div class="theme-toggle" role="group" aria-label="Colour theme">
-        <button class="theme-btn active" id="btn-dark"
-          aria-label="Dark mode" aria-pressed="true"
-          onclick="setTheme('dark')">🌙</button>
-        <button class="theme-btn" id="btn-light"
-          aria-label="Light mode" aria-pressed="false"
-          onclick="setTheme('light')">☀️</button>
-      </div>
-
-      <!-- AUDIT FIX [5.3]: Bell button with aria-label -->
-      <div id="bell-wrap">
-        <button class="bell-btn" id="bell-btn"
-          aria-label="Alerts and notifications" aria-expanded="false"
-          aria-controls="bell-panel" onclick="toggleBell()">
-          <span aria-hidden="true">🔔</span>
-          <span id="bell-count" style="background:var(--red);border-radius:50%;width:16px;height:16px;font-size:9px;display:none;align-items:center;justify-content:center;font-weight:700" aria-live="polite"></span>
-        </button>
-        <div id="bell-panel" role="dialog" aria-label="Alert settings" aria-modal="false">
-          <div style="padding:13px 15px;border-bottom:1px solid var(--border)">
-            <p style="color:var(--text2);font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:9px">Alert Settings</p>
-            <div style="display:flex;align-items:center;gap:8px;margin-bottom:9px">
-              <label for="thr" style="color:var(--text);font-size:12px;flex:1">Move threshold</label>
-              <input type="range" id="thr" min="1" max="20" value="5"
-                aria-valuemin="1" aria-valuemax="20" aria-valuenow="5"
-                oninput="updateThreshold(this.value)"
-                style="flex:2;accent-color:var(--green)"/>
-              <span id="thrval" style="color:var(--green);font-size:12px;font-weight:700;min-width:32px" aria-live="polite">≥5%</span>
-            </div>
-            <div style="display:flex;gap:7px">
-              <button id="notif-btn" class="btn-green" style="flex:1" onclick="enableNotif()">Enable Notifications</button>
-              <button class="btn-blue" onclick="demoAlerts()">Demo</button>
-            </div>
-          </div>
-          <div id="alerts-list" style="max-height:230px;overflow-y:auto" role="log" aria-label="Recent alerts" aria-live="polite">
-            <p style="color:var(--text3);font-size:12px;text-align:center;padding:18px 0">No alerts yet</p>
-          </div>
-        </div>
-      </div>
+<header id="hdr"><div id="hdr-in">
+  <div class="logo">
+    <div class="logo-icon">🇳🇬</div>
+    <div><div class="logo-title">NGX Radar</div><div class="logo-sub" id="subtitle">NIGERIAN STOCK EXCHANGE</div></div>
+  </div>
+  <div class="hdr-r">
+    <div id="status" class="s-demo">⚠ Demo</div>
+    <div class="tt">
+      <button class="tb on" id="btn-dark" onclick="setTheme('dark')" title="Dark">🌙</button>
+      <button class="tb" id="btn-light" onclick="setTheme('light')" title="Light">☀️</button>
     </div>
   </div>
-</header>
-
-<!-- AUDIT FIX [5.1]: Semantic <main> element -->
-<main id="main-content">
-  <div id="banner" class="banner" role="alert" aria-live="polite">
-    <p class="banner-title">📡 Showing demo data</p>
-    <p><strong>Step 1:</strong> Place <code>ngx_dashboard.html</code> in your Rust project folder</p>
-    <p><strong>Step 2:</strong> Run <code>cargo run</code> — generates <code>ngx_live.html</code> with live data baked in</p>
+</div></header>
+<main id="main">
+  <div id="banner" class="banner">
+    <strong>📡 Demo mode</strong> — Run <code>cargo run</code> to generate live data in <code>ngx_live.html</code>
   </div>
-
-  <div class="cards" id="cards" aria-label="Market summary"></div>
-
-  <!-- AUDIT FIX [5.1]: Tab navigation with ARIA role -->
-  <nav aria-label="Dashboard sections">
-    <div class="tabs" role="tablist" id="tablist">
-      <button class="tab active" role="tab" aria-selected="true"  aria-controls="tab-today"    id="t-today"    onclick="switchTab('today',this)">⚡ Today</button>
-      <button class="tab"        role="tab" aria-selected="false" aria-controls="tab-stocks"   id="t-stocks"   onclick="switchTab('stocks',this)">📋 Stocks</button>
-      <button class="tab"        role="tab" aria-selected="false" aria-controls="tab-charts"   id="t-charts"   onclick="switchTab('charts',this)">📊 Charts</button>
-      <button class="tab"        role="tab" aria-selected="false" aria-controls="tab-sectors"  id="t-sectors"  onclick="switchTab('sectors',this)">🗂 Sectors</button>
-      <button class="tab"        role="tab" aria-selected="false" aria-controls="tab-dividends"id="t-dividends" onclick="switchTab('dividends',this)">💰 Dividends</button>
-      <button class="tab"        role="tab" aria-selected="false" aria-controls="tab-earnings" id="t-earnings"  onclick="switchTab('earnings',this)">📈 Earnings</button>
-      <button class="tab"        role="tab" aria-selected="false" aria-controls="tab-insider"  id="t-insider"   onclick="switchTab('insider',this)">🔍 Insider</button>
-    </div>
-  </nav>
-
-  <!-- TODAY TAB -->
-  <section id="tab-today" role="tabpanel" aria-labelledby="t-today" class="fade">
-    <p style="color:var(--text3);font-size:12px;margin-bottom:12px">Most important signals right now — earnings, insider moves, dividends, alerts</p>
-    <div class="today-feed" id="today-feed" aria-live="polite"></div>
+  <div class="cards" id="cards"></div>
+  <div class="tabs" role="tablist">
+    <button class="tab on" onclick="sw('today',this)">⚡ Today</button>
+    <button class="tab" onclick="sw('stocks',this)">📋 Stocks</button>
+    <button class="tab" onclick="sw('charts',this)">📊 Charts</button>
+    <button class="tab" onclick="sw('sectors',this)">🗂 Sectors</button>
+    <button class="tab" onclick="sw('dividends',this)">💰 Dividends</button>
+    <button class="tab" onclick="sw('earnings',this)">📈 Earnings</button>
+    <button class="tab" onclick="sw('insider',this)">🔍 Insider</button>
+  </div>
+  <section id="tab-today" class="fade">
+    <p style="color:var(--text3);font-size:12px;margin-bottom:11px">Most important signals right now</p>
+    <div class="today-list" id="today-list"></div>
   </section>
-
-  <!-- STOCKS TAB -->
-  <section id="tab-stocks" role="tabpanel" aria-labelledby="t-stocks" style="display:none" class="fade">
+  <section id="tab-stocks" style="display:none">
     <div class="filters">
-      <!-- AUDIT FIX [7.2 UX]: Persistent visible label on search input -->
-      <div class="search-wrap">
-        <label class="search-label" for="search">Search stocks</label>
-        <input class="search" type="search" id="search"
-          placeholder="Ticker or company name..."
-          aria-label="Search stocks by ticker or company name"
-          oninput="S.search=this.value;renderStocks()"/>
-      </div>
-      <div class="secbtns" id="secbtns" role="group" aria-label="Filter by sector"></div>
+      <div class="sw"><div class="slbl">Search stocks</div><input class="search" id="search" type="search" placeholder="Ticker or company…" oninput="S.q=this.value;renderStocks()"/></div>
+      <div class="secbtns" id="secbtns"></div>
     </div>
-
-    <!-- AUDIT FIX [6.2 UX]: Empty state when search returns nothing -->
-    <div id="no-results" class="empty-state" role="status" aria-live="polite">
-      <svg width="40" height="40" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
-      </svg>
-      <p class="empty-state-title">No stocks match your search</p>
-      <p class="empty-state-sub">Try a different ticker or company name, or <button class="footer-link" onclick="clearSearch()" style="background:none;border:none;cursor:pointer;color:var(--green);font-size:12px;padding:0">clear the search</button></p>
-    </div>
-
-    <div class="slist" id="slist" aria-live="polite" aria-label="Stock list"></div>
-    <div class="tbl-wrap"><div class="tbl-scroll">
-      <table>
-        <caption>NGX top 30 stocks — sorted by rank. Click column headers to sort.</caption>
-        <thead><tr>
-          <th scope="col" onclick="srt('rank')"   style="text-align:left"># <span id="a-rank" aria-hidden="true"></span></th>
-          <th scope="col" onclick="srt('ticker')" style="text-align:left">Ticker <span id="a-ticker" aria-hidden="true"></span></th>
-          <th scope="col" style="text-align:left">Logo</th>
-          <th scope="col" onclick="srt('name')"   style="text-align:left">Company <span id="a-name" aria-hidden="true"></span></th>
-          <th scope="col" onclick="srt('sector')" style="text-align:left">Sector <span id="a-sector" aria-hidden="true"></span></th>
-          <th scope="col" onclick="srt('price')"  style="text-align:right">Price (₦) <span id="a-price" aria-hidden="true"></span></th>
-          <th scope="col" onclick="srt('change')" style="text-align:right">3M Chg <span id="a-change" aria-hidden="true"></span></th>
-          <th scope="col" onclick="srt('vol')"    style="text-align:right">Vol <span id="a-vol" aria-hidden="true"></span></th>
-          <th scope="col" style="cursor:default">Signal</th>
-          <th scope="col" style="cursor:default">Trend</th>
-        </tr></thead>
-        <tbody id="tbody"></tbody>
-      </table>
-    </div></div>
+    <div id="no-res" class="empty"><div style="font-size:14px;font-weight:600;color:var(--text2);margin-bottom:5px">No stocks match</div><button style="background:none;border:none;cursor:pointer;color:var(--green);font-size:13px" onclick="S.q='';document.getElementById('search').value='';renderStocks()">Clear search</button></div>
+    <div class="slist" id="slist"></div>
+    <div class="tbl-wrap"><div class="tbl-scroll"><table>
+      <caption>NGX Top 30 Stocks</caption>
+      <thead><tr>
+        <th onclick="srt('rank')">#<span id="a-rank"></span></th>
+        <th onclick="srt('ticker')">Ticker<span id="a-ticker"></span></th>
+        <th>Logo</th>
+        <th onclick="srt('name')" style="text-align:left">Company<span id="a-name"></span></th>
+        <th onclick="srt('sector')">Sector<span id="a-sector"></span></th>
+        <th onclick="srt('price')" style="text-align:right">Price ₦<span id="a-price"></span></th>
+        <th onclick="srt('change')" style="text-align:right">3M Chg<span id="a-change"></span></th>
+        <th onclick="srt('vol')" style="text-align:right">Vol<span id="a-vol"></span></th>
+        <th>Signal</th><th>Trend</th>
+      </tr></thead>
+      <tbody id="tbody"></tbody>
+    </table></div></div>
     <div id="detail"></div>
   </section>
-
-  <!-- CHARTS TAB -->
-  <section id="tab-charts" role="tabpanel" aria-labelledby="t-charts" style="display:none" class="fade">
+  <section id="tab-charts" style="display:none">
     <div class="charts-grid">
-      <div class="chart-box full"><h2 class="chart-title">3-Month % Change — All Stocks</h2><div id="c-bar" role="img" aria-label="Bar chart of 3-month price changes"></div></div>
-      <div class="chart-box"><h2 class="chart-title">Average Gain by Sector</h2><div id="c-hbar" role="img" aria-label="Horizontal bar chart of sector averages"></div></div>
-      <div class="chart-box"><h2 class="chart-title">Count by Sector</h2><div id="c-donut" style="display:flex;justify-content:center" role="img" aria-label="Donut chart of stocks by sector"></div></div>
+      <div class="cbox full"><div class="ctitle">3-Month % Change</div><div id="c-bar"></div></div>
+      <div class="cbox"><div class="ctitle">Avg Gain by Sector</div><div id="c-hbar"></div></div>
+      <div class="cbox"><div class="ctitle">Count by Sector</div><div id="c-donut" style="display:flex;justify-content:center"></div></div>
     </div>
   </section>
-
-  <!-- SECTORS TAB -->
-  <section id="tab-sectors" role="tabpanel" aria-labelledby="t-sectors" style="display:none" class="fade">
-    <div class="sec-grid" id="secgrid"></div>
-  </section>
-
-  <!-- DIVIDENDS TAB -->
-  <section id="tab-dividends" role="tabpanel" aria-labelledby="t-dividends" style="display:none" class="fade">
-    <div style="margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
-      <p style="color:var(--text2);font-size:13px">2026 dividend declarations — updated from NGX filings</p>
-      <span class="status-live">● NGX data</span>
+  <section id="tab-sectors" style="display:none"><div class="sgrid" id="sgrid"></div></section>
+  <section id="tab-dividends" style="display:none">
+    <div style="margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:7px">
+      <span style="color:var(--text2);font-size:13px">2026 NGX dividend declarations</span>
+      <span class="s-live">● NGX data</span>
     </div>
-    <div class="tbl-wrap"><div class="tbl-scroll">
-      <table>
-        <caption>2026 NGX dividend declarations. Sorted by payment date.</caption>
-        <thead><tr>
-          <th scope="col" style="text-align:left">Logo</th>
-          <th scope="col" style="text-align:left">Company</th>
-          <th scope="col" style="text-align:right">Div/Share</th>
-          <th scope="col" style="text-align:left">Bonus</th>
-          <th scope="col" style="text-align:left">Payment Date</th>
-          <th scope="col" style="text-align:left">Status</th>
-        </tr></thead>
-        <tbody id="div-tbody"></tbody>
-      </table>
-    </div></div>
-    <aside style="margin-top:12px;padding:11px 13px;background:var(--bg2);border:1px solid var(--border);border-radius:9px" role="note">
-      <p style="color:var(--amber);font-size:12px;font-weight:700;margin-bottom:4px">⚠️ Disclaimer</p>
-      <p style="color:var(--text3);font-size:12px;line-height:1.6">Dividend data is for informational purposes only. Always verify with NGX official filings before making investment decisions. This is not financial advice.</p>
-    </aside>
+    <div class="tbl-wrap"><div class="tbl-scroll"><table>
+      <caption>2026 NGX Dividends</caption>
+      <thead><tr><th>Logo</th><th style="text-align:left">Company</th><th style="text-align:right">Div/Share</th><th>Bonus</th><th>Pay Date</th><th>Status</th></tr></thead>
+      <tbody id="div-tbody"></tbody>
+    </table></div></div>
+    <div style="margin-top:10px;padding:11px 13px;background:var(--bg2);border:1px solid var(--border);border-radius:9px;color:var(--text3);font-size:12px;line-height:1.6">⚠️ For informational purposes only. Verify with NGX official filings. Not financial advice.</div>
   </section>
-
-  <!-- EARNINGS TAB -->
-  <section id="tab-earnings" role="tabpanel" aria-labelledby="t-earnings" style="display:none" class="fade">
-    <p style="color:var(--text2);font-size:13px;margin-bottom:14px">FY2025 audited results — declared in 2026. Sourced from NGX filings and company announcements.</p>
-    <div class="earnings-grid" id="earnings-grid"></div>
+  <section id="tab-earnings" style="display:none">
+    <p style="color:var(--text2);font-size:13px;margin-bottom:13px">FY2025 results — sourced from NGX filings.</p>
+    <div class="egrid" id="egrid"></div>
   </section>
-
-  <!-- INSIDER TAB -->
-  <section id="tab-insider" role="tabpanel" aria-labelledby="t-insider" style="display:none" class="fade">
-    <div style="margin-bottom:14px;background:var(--bg2);border:1px solid var(--purple)33;border-radius:10px;padding:14px;border-left:3px solid var(--purple)">
-      <h2 style="color:var(--purple);font-weight:700;font-size:13px;margin-bottom:6px">🔍 What is Insider Monitoring?</h2>
-      <p style="color:var(--text2);font-size:12px;line-height:1.7">When company directors buy or sell their own stock with personal funds it is a powerful signal. A CEO buying ₦3.3 billion of shares during a dip shows conviction — they know the business better than anyone. This tab tracks public NGX director dealing disclosures. <strong style="color:var(--text)">🟢 Green = BUY signal. 🔴 Red = SELL signal.</strong> Always combine with fundamentals before acting.</p>
+  <section id="tab-insider" style="display:none">
+    <div style="background:var(--bg2);border:1px solid rgba(168,85,247,.3);border-left:3px solid var(--purple);border-radius:10px;padding:14px;margin-bottom:13px">
+      <div style="color:var(--purple);font-weight:700;font-size:13px;margin-bottom:5px">🔍 Director Dealings Monitor</div>
+      <p style="color:var(--text2);font-size:12px;line-height:1.7">When directors buy their own stock with personal funds it is a conviction signal. 🟢 BUY signal. 🔴 SELL signal. Always combine with fundamentals before acting.</p>
     </div>
-    <!-- AUDIT FIX [6.5 UX]: Help / learn more link -->
-    <p style="font-size:12px;color:var(--text3);margin-bottom:12px">
-      Questions? <a href="https://ngxgroup.com/exchange/data/" target="_blank" rel="noopener noreferrer" style="color:var(--blue);text-decoration:underline">View official NGX filings ↗</a>
-      · <a href="/cdn-cgi/l/email-protection#c1a9a4adadae81afa6b9b3a0a5a0b3efafa6" style="color:var(--blue);text-decoration:underline">Contact us</a>
-    </p>
-    <h2 style="color:var(--text3);font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:10px">Recent Director Dealings</h2>
-    <div id="insider-feed"></div>
-    <aside style="margin-top:14px;padding:11px 13px;background:var(--bg2);border:1px solid var(--border);border-radius:9px" role="note">
-      <p style="color:var(--amber);font-size:12px;font-weight:700;margin-bottom:4px">⚠️ Disclaimer</p>
-      <p style="color:var(--text3);font-size:12px;line-height:1.6">Insider transaction data is sourced from public NGX filings and @ngnstx alerts. This is information only — not a recommendation to buy or sell. Always do your own research.</p>
-    </aside>
+    <div id="ins-feed"></div>
+    <div style="margin-top:13px;padding:11px 13px;background:var(--bg2);border:1px solid var(--border);border-radius:9px;color:var(--text3);font-size:12px;line-height:1.6">⚠️ Sourced from public NGX filings and @ngnstx. Information only — not a recommendation to buy or sell.</div>
   </section>
 </main>
-
-<!-- AUDIT FIX [5.1] + [9.2] + [2.5 UX]: Semantic footer with legal links + social -->
-<footer id="site-footer" role="contentinfo">
-  <div id="site-footer-inner">
-    <div class="footer-links">
-      <!-- AUDIT FIX [9.2]: Privacy and legal pages linked from footer -->
-      <a class="footer-link" href="/privacy">Privacy Policy</a>
-      <a class="footer-link" href="/terms">Terms of Service</a>
-      <a class="footer-link" href="/cdn-cgi/l/email-protection#563e333a3a391638312e2437323724783831">Contact</a>
-      <a class="footer-link" href="https://x.com/ngnstx" target="_blank" rel="noopener noreferrer">@ngnstx on X ↗</a>
-      <a class="footer-link" href="https://ngxgroup.com" target="_blank" rel="noopener noreferrer">NGX Group ↗</a>
-    </div>
-    <p class="footer-copy">NGX Radar · Not financial advice · Data from NGX public filings</p>
+<footer><div class="fin">
+  <div style="display:flex;gap:14px;flex-wrap:wrap">
+    <a href="mailto:hello@ngxradar.ng">Contact</a>
+    <a href="https://x.com/ngnstx" target="_blank" rel="noopener">@ngnstx ↗</a>
+    <a href="https://ngxgroup.com" target="_blank" rel="noopener">NGX Group ↗</a>
   </div>
-</footer>
-
-<script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
-// ═══════════════════════════════════════════════════════════
-//  NGX RADAR — FULL AUDIT-FIXED BUILD
-//  Addresses 24 of 24 audit failures identified.
-// ═══════════════════════════════════════════════════════════
-
+  <span style="color:var(--text4);font-size:11px">NGX Radar · Not financial advice · Data from NGX filings</span>
+</div></footer>
+<script>
 var INJECTED = null; /* <<NGX_DATA>> */
 
-// ── AUDIT FIX [10.3] + [3.4 UX]: Persist theme AND notification prefs ──
 function setTheme(t){
-  document.documentElement.setAttribute('data-theme',t);
-  localStorage.setItem('ngx-theme',t);
-  var isDark=t==='dark';
-  document.getElementById('btn-dark').classList.toggle('active',isDark);
-  document.getElementById('btn-light').classList.toggle('active',!isDark);
-  document.getElementById('btn-dark').setAttribute('aria-pressed',String(isDark));
-  document.getElementById('btn-light').setAttribute('aria-pressed',String(!isDark));
-}
-// Apply saved theme on load (also handled in <head> blocking script)
-(function(){var t=localStorage.getItem('ngx-theme')||'dark';setTheme(t);})();
-
-function loadSavedPrefs(){
-  // Restore notification threshold
-  var thr=localStorage.getItem('ngx-thr');
-  if(thr){
-    document.getElementById('thr').value=thr;
-    document.getElementById('thrval').textContent='≥'+thr+'%';
-  }
-  // Restore notification state
-  if(localStorage.getItem('ngx-notif')==='true'){
-    S.notifOn=true;
-    document.getElementById('bell-btn').style.background='rgba(34,197,94,0.15)';
-    var nb=document.getElementById('notif-btn');
-    nb.className='btn-red';nb.textContent='Disable Notifications';nb.onclick=disableNotif;
-    startPoll();
-  }
+  try{document.documentElement.setAttribute('data-theme',t);localStorage.setItem('ngx-theme',t);}catch(e){}
+  document.getElementById('btn-dark').classList.toggle('on',t==='dark');
+  document.getElementById('btn-light').classList.toggle('on',t==='light');
 }
 
-function updateThreshold(v){
-  document.getElementById('thrval').textContent='≥'+v+'%';
-  document.getElementById('thr').setAttribute('aria-valuenow',v);
-  localStorage.setItem('ngx-thr',v);
-}
-
-// ── COLOUR + DATA ──────────────────────────────────────────
 var SC={Energy:'#f59e0b',Finance:'#3b82f6',Agriculture:'#22c55e',Healthcare:'#ec4899',Fintech:'#a855f7'};
 var SECS=['Energy','Finance','Agriculture','Healthcare','Fintech'];
-var DATA=INJECTED||(function(){return{generated_date:'Live — Apr 4, 2026',total:30,summary:{gainers:14,decliners:16,avg_change:5.61,best_ticker:'SEPLAT',worst_ticker:'ETERNA'},stocks:[
-  {rank:1,ticker:'SEPLAT',name:'Seplat Energy Plc',sector:'Energy',price:3200.0,prev:2347.95,change:36.29,vol:5.5,sparkline:[102.9,106.7,109.8,112.2,115.7,119.6,123.3,126.2,128.9,131.7,134.5,138.3]},
-  {rank:2,ticker:'FBNH',name:'FBN Holdings Plc',sector:'Finance',price:14.2,prev:10.61,change:33.84,vol:4.8,sparkline:[101.6,105.1,107.2,110.7,112.3,115.9,119.4,122.4,126.1,129.2,131.3,134.5]},
-  {rank:3,ticker:'STANBIC',name:'Stanbic IBTC Holdings',sector:'Finance',price:58.0,prev:43.35,change:33.79,vol:4.8,sparkline:[102.4,104.2,106.2,110.2,112.8,114.7,117.9,120.9,124.0,128.2,131.9,134.5]},
-  {rank:4,ticker:'FCMB',name:'FCMB Group Plc',sector:'Finance',price:8.75,prev:6.76,change:29.44,vol:5.3,sparkline:[101.4,103.9,105.6,109.1,111.4,114.9,117.3,119.4,121.4,124.2,126.6,129.5]},
-  {rank:5,ticker:'OKOMUOIL',name:'Okomu Oil Palm Co Plc',sector:'Agriculture',price:295.0,prev:248.32,change:18.8,vol:5.2,sparkline:[103.1,104.6,105.0,106.9,107.6,108.0,111.1,113.3,115.0,116.0,118.1,118.4]},
-  {rank:6,ticker:'OANDO',name:'Oando Plc',sector:'Energy',price:15.6,prev:13.16,change:18.54,vol:4.9,sparkline:[100.8,101.5,103.9,105.7,107.6,109.2,110.9,112.3,112.6,113.8,115.2,117.0]},
-  {rank:7,ticker:'PHARMDEKO',name:'Pharma-Deko Plc',sector:'Healthcare',price:3.85,prev:3.3,change:16.67,vol:5.1,sparkline:[101.5,102.9,104.7,105.7,107.1,110.0,112.2,112.4,114.5,117.1,117.4,118.7]},
-  {rank:8,ticker:'FIDELITYBK',name:'Fidelity Bank Plc',sector:'Finance',price:12.4,prev:10.64,change:16.54,vol:5.2,sparkline:[100.4,103.3,104.2,105.4,107.1,108.1,110.3,110.8,113.5,114.4,117.0,119.3]},
-  {rank:9,ticker:'DANGSUGAR',name:'Dangote Sugar Refinery',sector:'Agriculture',price:38.5,prev:33.94,change:13.44,vol:4.8,sparkline:[101.8,103.1,105.8,106.8,109.3,109.7,112.3,112.1,114.1,115.2,116.3,116.5]},
-  {rank:10,ticker:'NEIMETH',name:'Neimeth International Pharmaceuticals',sector:'Healthcare',price:2.4,prev:2.15,change:11.63,vol:5.4,sparkline:[100.4,101.2,103.4,103.0,104.1,104.8,104.9,105.3,106.8,108.9,110.2,110.0]},
-  {rank:11,ticker:'UBA',name:'United Bank for Africa',sector:'Finance',price:18.5,prev:16.81,change:10.05,vol:4.9,sparkline:[100.6,102.9,102.6,103.7,103.7,104.8,106.5,108.3,110.3,112.4,113.0,113.0]},
-  {rank:12,ticker:'GLAXOSMITH',name:'GlaxoSmithKline Consumer Nigeria',sector:'Healthcare',price:12.5,prev:11.37,change:9.94,vol:5.5,sparkline:[100.6,100.4,102.7,102.3,103.3,103.6,103.1,105.3,105.8,105.3,106.7,108.0]},
-  {rank:13,ticker:'MRS',name:'MRS Oil Nigeria Plc',sector:'Energy',price:78.0,prev:71.41,change:9.23,vol:5.0,sparkline:[100.5,101.9,104.1,106.0,105.7,105.7,107.4,106.9,108.6,110.9,111.1,111.7]},
-  {rank:14,ticker:'PRESCO',name:'Presco Plc',sector:'Agriculture',price:485.0,prev:472.84,change:2.57,vol:5.5,sparkline:[101.1,100.7,100.6,100.2,100.5,101.7,101.4,100.5,99.7,99.3,98.5,99.8]},
-  {rank:15,ticker:'LIVESTOCK',name:'Livestock Feeds Plc',sector:'Agriculture',price:3.2,prev:3.19,change:0.31,vol:4.6,sparkline:[98.8,99.9,100.3,100.0,99.3,98.3,98.7,100.1,100.1,99.0,100.1,100.5]},
-  {rank:16,ticker:'ARDOVA',name:'Ardova Plc',sector:'Energy',price:34.5,prev:34.41,change:0.26,vol:5.0,sparkline:[99.1,99.7,99.0,98.8,98.5,99.2,98.9,98.0,98.7,97.3,98.0,98.8]},
-  {rank:17,ticker:'TRANSCORP',name:'Transnational Corporation',sector:'Fintech',price:4.2,prev:4.19,change:0.24,vol:5.4,sparkline:[99.0,97.6,97.3,97.1,97.0,96.2,95.3,96.6,97.8,98.1,96.7,96.7]},
-  {rank:18,ticker:'TOTAL',name:'TotalEnergies Marketing Nigeria',sector:'Energy',price:425.0,prev:425.05,change:-0.01,vol:5.0,sparkline:[99.4,99.9,99.6,99.2,99.6,98.2,98.0,97.5,96.9,96.2,96.0,95.3]},
-  {rank:19,ticker:'ZENITHBANK',name:'Zenith Bank Plc',sector:'Finance',price:37.2,prev:37.81,change:-1.61,vol:5.1,sparkline:[101.0,99.7,101.0,102.2,101.4,102.1,101.9,102.8,102.1,103.0,103.0,101.9]},
-  {rank:20,ticker:'NASCON',name:'NASCON Allied Industries',sector:'Agriculture',price:52.0,prev:53.07,change:-2.02,vol:4.8,sparkline:[100.7,100.7,102.0,101.0,102.1,100.6,101.9,100.9,101.3,102.3,102.5,103.0]},
-  {rank:21,ticker:'FIDSON',name:'Fidson Healthcare Plc',sector:'Healthcare',price:15.2,prev:15.55,change:-2.25,vol:5.3,sparkline:[100.1,98.9,99.3,99.1,97.6,96.7,95.8,95.4,94.1,95.3,95.4,93.8]},
-  {rank:22,ticker:'CONOIL',name:'Conoil Plc',sector:'Energy',price:88.5,prev:91.45,change:-3.23,vol:4.7,sparkline:[101.1,99.6,98.5,99.3,99.1,99.7,99.7,97.9,98.3,96.8,97.0,97.0]},
-  {rank:23,ticker:'FLOURMILL',name:'Flour Mills of Nigeria',sector:'Agriculture',price:42.0,prev:43.46,change:-3.36,vol:5.3,sparkline:[99.1,98.3,98.4,97.6,97.8,97.3,95.6,95.8,96.7,97.3,96.4,95.4]},
-  {rank:24,ticker:'ACCESS',name:'Access Holdings Plc',sector:'Finance',price:22.8,prev:23.79,change:-4.16,vol:5.4,sparkline:[99.1,97.6,98.6,98.2,97.2,96.7,96.6,97.0,97.0,97.3,98.0,96.5]},
-  {rank:25,ticker:'ETI',name:'Ecobank Transnational Inc',sector:'Finance',price:15.3,prev:16.67,change:-8.22,vol:5.1,sparkline:[98.5,99.0,96.8,94.6,94.8,93.5,92.6,91.9,91.4,91.3,90.7,90.1]},
-  {rank:26,ticker:'AIRTELAFRI',name:'Airtel Africa Plc',sector:'Fintech',price:1850.0,prev:2048.75,change:-9.7,vol:5.0,sparkline:[99.4,99.9,98.6,98.5,98.4,96.1,95.1,95.5,94.6,92.9,92.2,89.9]},
-  {rank:27,ticker:'MTNN',name:'MTN Nigeria Communications',sector:'Fintech',price:220.5,prev:246.5,change:-10.55,vol:5.0,sparkline:[99.1,98.7,98.4,97.4,97.1,97.6,95.2,94.4,93.2,91.0,89.7,90.1]},
-  {rank:28,ticker:'UNION',name:'Union Diagnostic and Clinical Services',sector:'Healthcare',price:1.9,prev:2.25,change:-15.56,vol:5.0,sparkline:[99.0,96.4,94.9,93.4,91.4,89.0,87.8,86.0,83.6,82.9,82.1,80.3]},
-  {rank:29,ticker:'OMATEK',name:'Omatek Ventures Plc',sector:'Fintech',price:0.85,prev:1.01,change:-15.84,vol:5.6,sparkline:[99.4,98.2,95.5,94.5,92.1,89.2,87.9,87.5,84.8,81.9,81.3,81.1]},
-  {rank:30,ticker:'ETERNA',name:'Eterna Plc',sector:'Energy',price:18.2,prev:21.86,change:-16.74,vol:4.9,sparkline:[99.9,97.2,94.9,94.4,93.5,93.4,91.1,88.7,86.7,84.0,82.5,80.4]}
-]},
-]}})();
-var stocks=DATA.stocks||[],sum=DATA.summary||{};
-var S={sector:'All',sortBy:'rank',sortDir:'asc',search:'',sel:null,notifOn:false,alerts:[],timer:null};
 
-// ── LOGO HELPER — AUDIT FIX [3.5]: loading="lazy" on all logos ──
-var LOGO_DOMAINS={
-  SEPLAT:'seplatenergy.com',STANBIC:'stanbicibtc.com',FBNH:'firstbanknigeria.com',
-  FCMB:'fcmb.com',OANDO:'oando.com',OKOMUOIL:'okomuoil.com',UBA:'ubagroup.com',
-  FIDELITYBK:'fidelitybank.ng',ZENITHBANK:'zenithbank.com',GTCO:'gtcoplc.com',
-  ACCESS:'accessbankplc.com',MTNN:'mtnonline.com',DANGSUGAR:'dangotesugar.com',
-  PRESCO:'prescoplc.com',FLOURMILL:'flourmills.com.ng',DANGCEM:'dangote.com',
-  BUAFOODS:'buafoods.com',BUACEMENT:'buacement.com',AIRTELAFRI:'africa.airtel.com',
-  NGXGROUP:'ngxgroup.com',TRANSCORP:'transcorpplc.com',MRS:'mrsoilng.com',
-  CONOIL:'conoil.com.ng',TOTAL:'totalenergies.com',NASCON:'dangote.com',
-  ARDOVA:'ardovaplc.com',FIDSON:'fidsonhealthcare.com',WEMABANK:'wemabank.com',
-  OANDO:'oando.com',PHARMDEKO:'pharmdeko.com',NEIMETH:'neimethpharma.com',
-  GLAXOSMITH:'gsk.com',MRS:'mrsoilng.com',PRESCO:'prescoplc.com',
-  LIVESTOCK:'livestockfeeds.com.ng',TRANSCORP:'transcorpplc.com',
-  TOTAL:'totalenergies.com',NASCON:'dangote.com',ETI:'ecobank.com',
-  AIRTELAFRI:'africa.airtel.com',UNION:'uniondiagnosticservices.com',
-  OMATEK:'omatek.com',ETERNA:'eternaplc.com',CONOIL:'conoil.com.ng',
-  FLOURMILL:'flourmills.com.ng',
-};
-function logoImg(ticker,sz){
+var DATA=INJECTED||(function(){return{
+  generated_date:'Demo Mode',total:30,
+  summary:{gainers:14,decliners:16,avg_change:5.61,best_ticker:'SEPLAT',worst_ticker:'ETERNA'},
+  stocks:[
+    {rank:1,ticker:'SEPLAT',name:'Seplat Energy Plc',sector:'Energy',price:3200,prev:2347.95,change:36.29,vol:5.5,sparkline:[97,100,104,101,106,110,107,113,117,114,120,124]},
+    {rank:2,ticker:'FBNH',name:'FBN Holdings Plc',sector:'Finance',price:14.20,prev:10.61,change:33.84,vol:4.8,sparkline:[88,91,94,92,96,99,97,101,104,102,106,109]},
+    {rank:3,ticker:'STANBIC',name:'Stanbic IBTC Holdings',sector:'Finance',price:58,prev:43.35,change:33.79,vol:4.8,sparkline:[87,90,93,91,95,98,96,100,103,101,105,108]},
+    {rank:4,ticker:'FCMB',name:'FCMB Group Plc',sector:'Finance',price:8.75,prev:6.76,change:29.44,vol:5.3,sparkline:[88,91,93,92,95,97,96,99,101,100,103,105]},
+    {rank:5,ticker:'OKOMUOIL',name:'Okomu Oil Palm Co Plc',sector:'Agriculture',price:295,prev:248.32,change:18.80,vol:5.2,sparkline:[93,94,96,95,97,98,99,100,101,102,104,105]},
+    {rank:6,ticker:'OANDO',name:'Oando Plc',sector:'Energy',price:15.60,prev:13.16,change:18.54,vol:4.9,sparkline:[92,93,95,94,97,98,97,99,101,100,103,104]},
+    {rank:7,ticker:'PHARMDEKO',name:'Pharma-Deko Plc',sector:'Healthcare',price:3.85,prev:3.30,change:16.67,vol:5.1,sparkline:[92,93,95,94,96,98,99,100,101,103,104,105]},
+    {rank:8,ticker:'FIDELITYBK',name:'Fidelity Bank Plc',sector:'Finance',price:12.40,prev:10.64,change:16.54,vol:5.2,sparkline:[92,93,95,94,96,98,99,100,101,103,104,105]},
+    {rank:9,ticker:'DANGSUGAR',name:'Dangote Sugar Refinery',sector:'Agriculture',price:38.50,prev:33.94,change:13.44,vol:4.8,sparkline:[93,94,96,95,97,99,100,101,102,103,104,105]},
+    {rank:10,ticker:'NEIMETH',name:'Neimeth International Pharmaceuticals',sector:'Healthcare',price:2.40,prev:2.15,change:11.63,vol:5.4,sparkline:[93,94,95,96,97,98,99,100,101,102,103,104]},
+    {rank:11,ticker:'UBA',name:'United Bank for Africa',sector:'Finance',price:18.50,prev:16.81,change:10.05,vol:4.9,sparkline:[94,95,96,95,97,98,99,100,101,102,103,103]},
+    {rank:12,ticker:'GLAXOSMITH',name:'GlaxoSmithKline Consumer Nigeria',sector:'Healthcare',price:12.50,prev:11.37,change:9.94,vol:5.5,sparkline:[94,95,96,95,97,98,99,100,101,102,103,104]},
+    {rank:13,ticker:'MRS',name:'MRS Oil Nigeria Plc',sector:'Energy',price:78,prev:71.41,change:9.23,vol:5.0,sparkline:[94,95,96,95,97,98,99,100,101,102,103,104]},
+    {rank:14,ticker:'PRESCO',name:'Presco Plc',sector:'Agriculture',price:485,prev:472.84,change:2.57,vol:5.5,sparkline:[99,100,100,99,100,101,101,100,99,100,101,101]},
+    {rank:15,ticker:'LIVESTOCK',name:'Livestock Feeds Plc',sector:'Agriculture',price:3.20,prev:3.19,change:0.31,vol:4.6,sparkline:[99,100,100,99,100,100,100,99,100,100,100,100]},
+    {rank:16,ticker:'ARDOVA',name:'Ardova Plc',sector:'Energy',price:34.50,prev:34.41,change:0.26,vol:5.0,sparkline:[100,100,99,100,99,100,100,99,100,100,100,100]},
+    {rank:17,ticker:'TRANSCORP',name:'Transnational Corporation',sector:'Fintech',price:4.20,prev:4.19,change:0.24,vol:5.4,sparkline:[100,99,100,99,99,100,99,100,99,100,100,100]},
+    {rank:18,ticker:'TOTAL',name:'TotalEnergies Marketing Nigeria',sector:'Energy',price:425,prev:425.05,change:-0.01,vol:5.0,sparkline:[100,100,99,100,99,100,99,99,100,99,100,99]},
+    {rank:19,ticker:'ZENITHBANK',name:'Zenith Bank Plc',sector:'Finance',price:37.20,prev:37.81,change:-1.61,vol:5.1,sparkline:[101,100,101,102,101,102,101,102,101,102,101,101]},
+    {rank:20,ticker:'NASCON',name:'NASCON Allied Industries',sector:'Agriculture',price:52,prev:53.07,change:-2.02,vol:4.8,sparkline:[101,101,102,101,102,101,101,102,101,102,103,103]},
+    {rank:21,ticker:'FIDSON',name:'Fidson Healthcare Plc',sector:'Healthcare',price:15.20,prev:15.55,change:-2.25,vol:5.3,sparkline:[101,100,100,99,98,97,97,96,95,95,96,95]},
+    {rank:22,ticker:'CONOIL',name:'Conoil Plc',sector:'Energy',price:88.50,prev:91.45,change:-3.23,vol:4.7,sparkline:[101,100,99,100,99,100,99,98,98,97,97,97]},
+    {rank:23,ticker:'FLOURMILL',name:'Flour Mills of Nigeria',sector:'Agriculture',price:42,prev:43.46,change:-3.36,vol:5.3,sparkline:[101,100,99,98,99,98,97,97,96,96,97,96]},
+    {rank:24,ticker:'ACCESS',name:'Access Holdings Plc',sector:'Finance',price:22.80,prev:23.79,change:-4.16,vol:5.4,sparkline:[101,100,99,98,97,97,96,97,97,96,97,96]},
+    {rank:25,ticker:'ETI',name:'Ecobank Transnational Inc',sector:'Finance',price:15.30,prev:16.67,change:-8.22,vol:5.1,sparkline:[101,100,99,97,96,95,94,93,92,91,91,91]},
+    {rank:26,ticker:'AIRTELAFRI',name:'Airtel Africa Plc',sector:'Fintech',price:1850,prev:2048.75,change:-9.70,vol:5.0,sparkline:[101,100,98,97,96,95,94,93,92,91,90,90]},
+    {rank:27,ticker:'MTNN',name:'MTN Nigeria Communications',sector:'Fintech',price:220.50,prev:246.50,change:-10.55,vol:5.0,sparkline:[101,100,98,97,95,94,93,92,91,90,90,89]},
+    {rank:28,ticker:'UNION',name:'Union Diagnostic and Clinical Services',sector:'Healthcare',price:1.90,prev:2.25,change:-15.56,vol:5.0,sparkline:[100,99,97,95,93,91,89,87,85,83,82,81]},
+    {rank:29,ticker:'OMATEK',name:'Omatek Ventures Plc',sector:'Fintech',price:0.85,prev:1.01,change:-15.84,vol:5.6,sparkline:[100,98,96,94,92,90,88,86,84,82,82,81]},
+    {rank:30,ticker:'ETERNA',name:'Eterna Plc',sector:'Energy',price:18.20,prev:21.86,change:-16.74,vol:4.9,sparkline:[100,98,96,94,92,90,88,86,84,82,81,80]}
+  ]
+};}());
+
+var stocks=DATA.stocks||[], sum=DATA.summary||{};
+var S={sector:'All',sortBy:'rank',sortDir:'asc',q:'',sel:null};
+
+var DIVS=[
+  {company:'Dangote Cement',ticker:'DANGCEM',div:'₦45.00',bonus:'Nil',date:'Jul 2, 2026',status:'upcoming'},
+  {company:'BUA Foods',ticker:'BUAFOODS',div:'₦28.00',bonus:'Nil',date:'Jul 15, 2026',status:'upcoming'},
+  {company:'GTCO',ticker:'GTCO',div:'₦12.76',bonus:'Nil',date:'TBC',status:'declared'},
+  {company:'MTN Nigeria',ticker:'MTNN',div:'₦15.00',bonus:'Nil',date:'May 5, 2026',status:'upcoming'},
+  {company:'BUA Cement',ticker:'BUACEMENT',div:'₦10.00',bonus:'Nil',date:'May 21, 2026',status:'upcoming'},
+  {company:'Seplat Energy',ticker:'SEPLAT',div:'USD 25¢',bonus:'Nil',date:'May 29, 2026',status:'upcoming'},
+  {company:'Lafarge Africa',ticker:'WAPCO',div:'₦6.00',bonus:'Nil',date:'Apr 30, 2026',status:'upcoming'},
+  {company:'Geregu Power',ticker:'GEREGU',div:'₦9.00',bonus:'Nil',date:'Apr 30, 2026',status:'upcoming'},
+  {company:'NASCON',ticker:'NASCON',div:'₦6.00',bonus:'Nil',date:'Apr 28, 2026',status:'upcoming'},
+  {company:'NGX Group',ticker:'NGXGROUP',div:'₦3.00',bonus:'1 for 3',date:'Apr 29, 2026',status:'upcoming'},
+  {company:'Africa Prudential',ticker:'AFRIPRUD',div:'₦0.40',bonus:'Nil',date:'Apr 2, 2026',status:'paid'},
+  {company:'Vitafoam',ticker:'VITAFOAM',div:'₦3.00',bonus:'1 for 5',date:'Mar 5, 2026',status:'paid'}
+];
+
+var EARNINGS=[
+  {ticker:'GTCO',name:'Guaranty Trust Holding Co',revenue:'₦2.2tn',profit:'₦1.23tn PBT',dividend:'₦12.76/share',growth:23,note:'Record dividend since listing. Core income +23%. Fee income +26%.',color:'#3b82f6'},
+  {ticker:'BUAFOODS',name:'BUA Foods Plc',revenue:'₦1.77tn',profit:'₦518.4bn',dividend:'₦28/share (+115%)',growth:91,note:'Dividend up 115% vs 2024. Consumer demand surge drove revenue.',color:'#22c55e'},
+  {ticker:'SEPLAT',name:'Seplat Energy Plc',revenue:'$2.73bn',profit:'EBITDA $1.28bn',dividend:'USD 25¢ (+52%)',growth:144,note:'Revenue +144%, production +148%. $1bn return target by 2030.',color:'#f59e0b'},
+  {ticker:'DANGCEM',name:'Dangote Cement Plc',revenue:'₦4.31tn',profit:'₦1.02tn',dividend:'₦45/share',growth:166,note:'One of two companies to cross ₦1tn profit in 2025.',color:'#ef4444'},
+  {ticker:'MTNN',name:'MTN Nigeria Communications',revenue:'₦5.2tn',profit:'₦1.1tn',dividend:'₦15/share',growth:245,note:'Returned to ₦1tn profit. Data and fintech drove recovery.',color:'#a855f7'},
+  {ticker:'ACCESS',name:'Access Holdings Plc',revenue:'₦4.5tn',profit:'₦616.25bn PBT',dividend:'10.5% yield est.',growth:19,note:'Largest bank by assets. 92.3% analyst upside. Most undervalued Tier-1.',color:'#3b82f6'},
+  {ticker:'NGXGROUP',name:'NGX Group Plc',revenue:'₦22.9bn',profit:'₦15.6bn PBT',dividend:'₦3 + 1:3 bonus',growth:36,note:'Core revenue +36%, operating profit +44%. 50% dividend increase YoY.',color:'#22c55e'},
+  {ticker:'ZENITHBANK',name:'Zenith Bank Plc',revenue:'₦3.0tn+',profit:'₦532bn+',dividend:'₦11.76/share est.',growth:20,note:'CEO bought ₦3.3bn shares Jun 2025. Strong insider conviction.',color:'#3b82f6'}
+];
+
+var INSIDER=[
+  {ticker:'ZENITHBANK',company:'Zenith Bank',director:'Adaora Umeoji (CEO)',type:'BUY',date:'Jun 2025',units:'68.75M shares',value:'~₦3.3bn',signal:'CEO bought during sector selloff. Stake grew 300% in 6 months.',badge:'🟢 STRONG BUY'},
+  {ticker:'NGXGROUP',company:'NGX Group',director:'Ademola Babarinde (NED)',type:'BUY',date:'Mar 27, 2026',units:'20,000 shares',value:'₦3.376M',signal:'NED bought before dividend + bonus announcement on Apr 29.',badge:'🟢 BUY'},
+  {ticker:'UBA',company:'United Bank for Africa',director:'Tony Elumelu (Chairman)',type:'BUY',date:'2025',units:'Stake increased',value:'Material',signal:'Founder grew stake. 20-country Africa diversification. 7.9% dividend.',badge:'🟢 ACCUMULATING'},
+  {ticker:'BUAFOODS',company:'BUA Foods',director:'Abdul Samad Rabiu (Chairman)',type:'BUY',date:'Ongoing',units:'Majority stake',value:'Controlling',signal:'Founder aligned. Dividend ₦28/share — 115% increase vs 2024.',badge:'🟢 FOUNDER'},
+  {ticker:'DANGCEM',company:'Dangote Cement',director:'Aliko Dangote (Founder)',type:'BUY',date:'Ongoing',units:'Majority stake',value:'Controlling',signal:'₦45/share — highest NGX 2026 dividend. Africa largest cement co.',badge:'🟢 FOUNDER'}
+];
+
+var TODAY=[
+  {cls:'ear',icon:'📊',title:'GTCO declares record ₦12.76 dividend',desc:'PBT ₦1.23tn FY2025. Most generous payout since listing. Income +23%.',ticker:'GTCO',time:'Today'},
+  {cls:'ear',icon:'📊',title:'BUA Foods profit surges 91%',desc:'Revenue ₦1.77tn. Dividend ₦28/share — 115% increase vs 2024.',ticker:'BUAFOODS',time:'Yesterday'},
+  {cls:'ear',icon:'📊',title:'Seplat revenue +144% to $2.73bn',desc:'Production +148%. Dividend USD 25¢/share (+52%).',ticker:'SEPLAT',time:'Feb 26'},
+  {cls:'ins',icon:'🔍',title:'INSIDER BUY: NGX Group Director',desc:'Ademola Babarinde bought 20,000 shares ₦3.376M before dividend + bonus.',ticker:'NGXGROUP',time:'Mar 27'},
+  {cls:'ins',icon:'🔍',title:'INSIDER BUY: Zenith CEO ₦3.3bn',desc:'CEO Adaora Umeoji bought 68.75M shares during selloff. Stake +300%.',ticker:'ZENITHBANK',time:'Jun 2025'},
+  {cls:'div',icon:'💰',title:'Dividends due — April & May',desc:'NASCON Apr 28 · Lafarge + Geregu Apr 30 · NGX Group + bonus Apr 29 · MTN ₦15 May 5',ticker:'',time:'Upcoming'}
+];
+
+var LOGOS={SEPLAT:'seplatenergy.com',STANBIC:'stanbicibtc.com',FBNH:'firstbanknigeria.com',FCMB:'fcmb.com',OANDO:'oando.com',OKOMUOIL:'okomuoil.com',UBA:'ubagroup.com',FIDELITYBK:'fidelitybank.ng',ZENITHBANK:'zenithbank.com',GTCO:'gtcoplc.com',ACCESS:'accessbankplc.com',MTNN:'mtnonline.com',DANGSUGAR:'dangotesugar.com',PRESCO:'prescoplc.com',FLOURMILL:'flourmills.com.ng',DANGCEM:'dangote.com',BUAFOODS:'buafoods.com',BUACEMENT:'buacement.com',AIRTELAFRI:'africa.airtel.com',NGXGROUP:'ngxgroup.com',TRANSCORP:'transcorpplc.com',MRS:'mrsoilng.com',CONOIL:'conoil.com.ng',TOTAL:'totalenergies.com',NASCON:'dangote.com',ARDOVA:'ardovaplc.com',FIDSON:'fidsonhealthcare.com',PHARMDEKO:'pharmdeko.com',NEIMETH:'neimethpharma.com',GLAXOSMITH:'gsk.com',LIVESTOCK:'livestockfeeds.com.ng',ETI:'ecobank.com',UNION:'uniondiagnostic.com',OMATEK:'omatek.com',ETERNA:'eternaplc.com'};
+
+function logo(t,sz){
   sz=sz||28;
-  var d=LOGO_DOMAINS[ticker];
-  var fb='<div class="co-logo-fallback" style="width:'+sz+'px;height:'+sz+'px;font-size:'+(sz<24?9:11)+'px" aria-hidden="true">'+ticker.substring(0,3)+'</div>';
+  var d=LOGOS[t];
+  var fb='<div class="co-fb" style="width:'+sz+'px;height:'+sz+'px">'+t.slice(0,3)+'</div>';
   if(!d)return fb;
-  // AUDIT FIX [3.5]: loading="lazy", explicit width+height prevents CLS
-  // AUDIT FIX [4.3]: explicit dimensions reserved = no layout shift
-  return'<img class="co-logo" src="https://logo.clearbit.com/'+d+'" width="'+sz+'" height="'+sz+'" loading="lazy" alt="'+ticker+' logo" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'flex\'">'+
-    '<div class="co-logo-fallback" style="display:none;width:'+sz+'px;height:'+sz+'px;font-size:'+(sz<24?9:11)+'px" aria-hidden="true">'+ticker.substring(0,3)+'</div>';
+  return '<img class="co-logo" src="https://logo.clearbit.com/'+d+'" width="'+sz+'" height="'+sz+'" loading="lazy" alt="'+t+'" onerror="this.style.display=\'none\';this.nextSibling.style.display=\'flex\'"><div class="co-fb" style="display:none;width:'+sz+'px;height:'+sz+'px">'+t.slice(0,3)+'</div>';
 }
 
-// ── SIGNAL SCORE ───────────────────────────────────────────
-var DIVS=[
-  {company:'Dangote Cement',   ticker:'DANGCEM',  div:'₦45.00',  bonus:'Nil',    date:'Jul 2, 2026',  status:'upcoming'},
-  {company:'BUA Foods',        ticker:'BUAFOODS', div:'₦28.00',  bonus:'Nil',    date:'Jul 15, 2026', status:'upcoming'},
-  {company:'SFS REIT',         ticker:'SFSREIT',  div:'₦28.30',  bonus:'Nil',    date:'May 18, 2026', status:'upcoming'},
-  {company:'GTCO',             ticker:'GTCO',     div:'₦12.76',  bonus:'Nil',    date:'TBC',          status:'declared'},
-  {company:'MTN Nigeria',      ticker:'MTNN',     div:'₦15.00',  bonus:'Nil',    date:'May 5, 2026',  status:'upcoming'},
-  {company:'BUA Cement',       ticker:'BUACEMENT',div:'₦10.00',  bonus:'Nil',    date:'May 21, 2026', status:'upcoming'},
-  {company:'Seplat Energy',    ticker:'SEPLAT',   div:'USD 25¢', bonus:'Nil',    date:'May 29, 2026', status:'upcoming'},
-  {company:'NAHCO',            ticker:'NAHCO',    div:'₦6.25',   bonus:'1 for 7',date:'TBC',          status:'declared'},
-  {company:'Julius Berger',    ticker:'JBERGER',  div:'₦4.25',   bonus:'Nil',    date:'TBC',          status:'declared'},
-  {company:'Lafarge Africa',   ticker:'WAPCO',    div:'₦6.00',   bonus:'Nil',    date:'Apr 30, 2026', status:'upcoming'},
-  {company:'Geregu Power',     ticker:'GEREGU',   div:'₦9.00',   bonus:'Nil',    date:'Apr 30, 2026', status:'upcoming'},
-  {company:'NASCON',           ticker:'NASCON',   div:'₦6.00',   bonus:'Nil',    date:'Apr 28, 2026', status:'upcoming'},
-  {company:'NGX Group',        ticker:'NGXGROUP', div:'₦3.00',   bonus:'1 for 3',date:'Apr 29, 2026', status:'upcoming'},
-  {company:'Transcorp Power',  ticker:'TRANSPOWER',div:'₦4.00',  bonus:'Nil',    date:'May 5, 2026',  status:'upcoming'},
-  {company:'Unilever Nigeria', ticker:'UNILEVER', div:'₦3.25',   bonus:'Nil',    date:'May 8, 2026',  status:'upcoming'},
-  {company:'Africa Prudential',ticker:'AFRIPRUD', div:'₦0.40',   bonus:'Nil',    date:'Apr 2, 2026',  status:'paid'},
-  {company:'Vitafoam',         ticker:'VITAFOAM', div:'₦3.00',   bonus:'1 for 5',date:'Mar 5, 2026',  status:'paid'},
-  {company:'Transcorp Hotels', ticker:'TRANSHOTEL',div:'₦1.20',  bonus:'Nil',    date:'Feb 27, 2026', status:'paid'},
-];
-var EARNINGS_DATA=[
-  {ticker:'GTCO',     name:'Guaranty Trust Holding Co', logo:'gtcoplc.com',     revenue:'₦2.2tn',  profit:'₦1.23tn PBT / ₦865.75bn PAT',  dividend:'₦12.76/share', yoy_growth:23,  highlight:'Most generous dividend since listing. Core income up 23.2%. Record payout.', color:'#3b82f6'},
-  {ticker:'BUAFOODS', name:'BUA Foods Plc',              logo:'buafoods.com',    revenue:'₦1.77tn', profit:'₦518.4bn',                      dividend:'₦28/share (+115%)',yoy_growth:91, highlight:'Dividend up 115% vs 2024. Revenue surge driven by consumer demand recovery.', color:'#22c55e'},
-  {ticker:'SEPLAT',   name:'Seplat Energy Plc',          logo:'seplatenergy.com',revenue:'$2.73bn', profit:'EBITDA $1.28bn',                dividend:'USD 25¢ (+52%)', yoy_growth:144,highlight:'Revenue +144%, production +148%. $1bn cumulative return target by 2030.',  color:'#f59e0b'},
-  {ticker:'DANGCEM',  name:'Dangote Cement Plc',         logo:'dangote.com',     revenue:'₦4.31tn', profit:'₦1.02tn',                       dividend:'₦45/share',    yoy_growth:166, highlight:'One of two companies to cross the ₦1tn profit mark in 2025.', color:'#ef4444'},
-  {ticker:'MTNN',     name:'MTN Nigeria Communications', logo:'mtnonline.com',   revenue:'₦5.2tn',  profit:'₦1.1tn',                        dividend:'₦15/share',    yoy_growth:245, highlight:'Returned to ₦1tn profit. Data usage and fintech drove the recovery.', color:'#a855f7'},
-  {ticker:'ACCESS',   name:'Access Holdings Plc',        logo:'accessbankplc.com',revenue:'₦4.5tn', profit:'₦616.25bn PBT',                dividend:'10.5% yield est.',yoy_growth:19, highlight:'Largest bank by assets. 92.3% analyst upside target. Most undervalued Tier-1.', color:'#3b82f6'},
-  {ticker:'NGXGROUP', name:'NGX Group Plc',              logo:'ngxgroup.com',    revenue:'₦22.9bn', profit:'₦15.6bn PBT',                   dividend:'₦3 + 1:3 bonus',yoy_growth:36, highlight:'Core revenue +36%, operating profit +44%. 50% dividend increase YoY.', color:'#22c55e'},
-  {ticker:'BUACEMENT',name:'BUA Cement Plc',             logo:'buacement.com',   revenue:'₦1.0tn+', profit:'+383% growth',                  dividend:'₦10/share',    yoy_growth:383, highlight:'Joined trillion-naira revenue club. FX gains drove massive turnaround.', color:'#f59e0b'},
-  {ticker:'ZENITHBANK',name:'Zenith Bank Plc',           logo:'zenithbank.com',  revenue:'₦3.0tn+', profit:'₦532bn+',                       dividend:'₦11.76/share est.',yoy_growth:20, highlight:'CEO personally bought ₦3.3bn of shares in June 2025 — strong insider conviction.', color:'#3b82f6'},
-  {ticker:'WAPCO',    name:'Lafarge Africa Plc',         logo:'lafarge.com',     revenue:'₦1.0tn+', profit:'+173% growth',                  dividend:'₦6/share',     yoy_growth:173, highlight:'Joined trillion-naira revenue club. Cement sector recovery.', color:'#64748b'},
-];
-var INSIDER_DATA=[
-  {ticker:'ZENITHBANK',company:'Zenith Bank',         director:'Adaora Umeoji (CEO)',     type:'BUY',  date:'Jun 2025',     units:'68.75M shares',value:'~₦3.3bn',   signal:'CEO bought during sector selloff. Stake grew 300% in 6 months. Classic conviction buy.',badge:'🟢 STRONG BUY'},
-  {ticker:'NGXGROUP',  company:'NGX Group',            director:'Ademola Babarinde (NED)',type:'BUY',  date:'Mar 27, 2026', units:'20,000 shares', value:'₦3.376M',   signal:'NED bought just before dividend + bonus share announcement on April 29.',badge:'🟢 BUY'},
-  {ticker:'UBA',       company:'United Bank for Africa',director:'Tony Elumelu (Chairman)',type:'BUY', date:'2025',         units:'Stake increased',value:'Material',  signal:'Founder grew personal stake. 20-country African diversification. 7.9% dividend yield.',badge:'🟢 ACCUMULATING'},
-  {ticker:'BUAFOODS',  company:'BUA Foods',            director:'Abdul Samad Rabiu (Chairman)',type:'BUY',date:'Ongoing',   units:'Majority stake', value:'Controlling',signal:'Founder holds controlling stake. ₦28/share dividend — 115% increase. Aligned with payout.',badge:'🟢 FOUNDER ALIGNED'},
-  {ticker:'GTCO',      company:'GTCO',                 director:'Segun Agbaje (CEO)',     type:'NOTE', date:'Apr 1, 2026',  units:'32M shares held',value:'₦410M div', signal:'CEO collects ₦410M on record ₦12.76 dividend. Stake small but dividend signals confidence.',badge:'🔵 WATCH'},
-  {ticker:'DANGCEM',   company:'Dangote Cement',       director:'Aliko Dangote (Founder)',type:'BUY',  date:'Ongoing',      units:'Majority stake', value:'Controlling',signal:'Founder holds majority. ₦45/share — highest NGX 2026 dividend. Africa\'s largest cement co.',badge:'🟢 FOUNDER ALIGNED'},
-];
-var TODAY_FEED=[
-  {type:'alert-earnings',icon:'📊',title:'GTCO declares record ₦12.76 dividend',desc:'PBT ₦1.23tn FY2025. Most generous payout since listing. Interest income +23%, fee income +26%. Declared today.',ticker:'GTCO',time:'Today'},
-  {type:'alert-earnings',icon:'📊',title:'BUA Foods profit surges 91%',desc:'Revenue ₦1.77tn. Dividend ₦28/share — a 115% increase vs 2024. Strong consumer demand drives results.',ticker:'BUAFOODS',time:'Yesterday'},
-  {type:'alert-earnings',icon:'📊',title:'Seplat revenue +144% to $2.73bn',desc:'Production +148%. Total dividend USD 25¢/share (+52%). Committed to $1bn cumulative returns by 2030.',ticker:'SEPLAT',time:'Feb 26'},
-  {type:'alert-insider',icon:'🔍',title:'INSIDER BUY: NGX Group Director',desc:'Ademola Babarinde bought 20,000 shares worth ₦3.376M on March 27 — before the ₦3 dividend + 1:3 bonus announcement.',ticker:'NGXGROUP',time:'Mar 27'},
-  {type:'alert-insider',icon:'🔍',title:'INSIDER BUY: Zenith Bank CEO ₦3.3bn',desc:'CEO Adaora Umeoji bought 68.75M shares during mid-2025 selloff. Stake grew 300% in 6 months. Strong conviction.',ticker:'ZENITHBANK',time:'Jun 2025'},
-  {type:'alert-dividend',icon:'💰',title:'Dividends due soon — April & May',desc:'NASCON (Apr 28) · Lafarge + Geregu (Apr 30) · NGX Group + bonus (Apr 29) · MTN ₦15 (May 5) · BUA Cement (May 21)',ticker:'',time:'Upcoming'},
-  {type:'alert-buy',icon:'📈',title:'NGX up 39.44% YTD — Africa Top 4',desc:'ASI crossed 200,000. Market cap ₦128.7tn. Nigeria ranked among Africa\'s top 4 best-performing exchanges globally.',ticker:'',time:'Mar 2026'},
-];
-
-function signalScore(s){
+function sig(s){
   var sc=0;
   if(s.change>15)sc+=40;else if(s.change>8)sc+=25;else if(s.change>3)sc+=15;
   if(s.vol>50)sc+=25;else if(s.vol>10)sc+=15;else if(s.vol>3)sc+=8;
-  if(DIVS.find(function(d){return d.ticker===s.ticker&&d.status!=='paid'}))sc+=25;
-  if(INSIDER_DATA.find(function(d){return d.ticker===s.ticker&&d.type==='BUY'}))sc+=20;
-  if(EARNINGS_DATA.find(function(e){return e.ticker===s.ticker&&e.yoy_growth>30}))sc+=15;
+  if(DIVS.some(function(d){return d.ticker===s.ticker&&d.status!=='paid';}))sc+=20;
+  if(INSIDER.some(function(d){return d.ticker===s.ticker&&d.type==='BUY';}))sc+=15;
   return Math.min(100,sc);
 }
-function signalHTML(sc){
-  var n=4,f=Math.round(sc/100*n),col=sc>=70?'g':sc>=40?'a':'r',h='<div class="signal-bar" title="Signal strength: '+sc+'/100" aria-label="Signal '+sc+' out of 100">';
-  for(var i=0;i<n;i++)h+='<div class="signal-dot'+(i<f?' on '+col:'')+'"></div>';
+function sigH(sc){
+  var n=4,f=Math.round(sc/100*n),c=sc>=70?'g':sc>=40?'a':'r',h='<div class="sig">';
+  for(var i=0;i<n;i++)h+='<div class="dot'+(i<f?' '+c:'')+'"></div>';
   return h+'</div>';
 }
 
-// ── SVG CHART HELPERS ──────────────────────────────────────
-function spk(d,pos,W,H){
-  if(!d||d.length<2)return'';W=W||60;H=H||22;
-  var mn=Math.min.apply(null,d),mx=Math.max.apply(null,d),r=mx-mn||1;
-  var pts=d.map(function(v,i){return(i/(d.length-1)*W)+','+(H-((v-mn)/r)*H)}).join(' ');
-  return'<svg width="'+W+'" height="'+H+'" style="display:block" aria-hidden="true"><polyline fill="none" stroke="'+(pos?'var(--green)':'var(--red)')+'" stroke-width="1.5" points="'+pts+'"/></svg>';
+function spk(d,pos){
+  if(!d||d.length<2)return'';
+  var W=60,H=22,mn=Math.min.apply(null,d),mx=Math.max.apply(null,d),r=mx-mn||1;
+  var pts=d.map(function(v,i){return(i/(d.length-1)*W)+','+(H-((v-mn)/r)*H);}).join(' ');
+  return '<svg width="'+W+'" height="'+H+'" style="display:block"><polyline fill="none" stroke="'+(pos?'var(--green)':'var(--red)')+'" stroke-width="1.5" points="'+pts+'"/></svg>';
 }
 function barSVG(st){
-  var W=580,H=170,PT=6,PB=24,PL=6,iW=W-PL-6,iH=H-PT-PB;
-  var mx=Math.max.apply(null,st.map(function(s){return Math.abs(s.change)}))||1;
-  var bW=Math.max(2,iW/st.length-1.5),z=iH/2,b='',l='';
+  var W=560,H=155,z=66,bW=Math.max(2,W/st.length-1.5);
+  var mx=Math.max.apply(null,st.map(function(s){return Math.abs(s.change);}))||1;
+  var b='';
   st.forEach(function(s,i){
-    var pos=s.change>=0,bH=Math.abs(s.change)/mx*(iH/2);
-    var x=PL+i*(iW/st.length)+(iW/st.length-bW)/2,y=pos?PT+z-bH:PT+z;
+    var pos=s.change>=0,bH=Math.abs(s.change)/mx*z;
+    var x=5+i*(W/st.length),y=pos?10+z-bH:10+z;
     b+='<rect x="'+x+'" y="'+y+'" width="'+bW+'" height="'+Math.max(1,bH)+'" fill="'+(pos?'var(--green)':'var(--red)')+'" rx="1.5" opacity=".85"/>';
-    if(st.length<=20)l+='<text x="'+(x+bW/2)+'" y="'+(H-5)+'" text-anchor="middle" font-size="7" fill="var(--text3)">'+s.ticker+'</text>';
   });
-  return'<svg width="100%" viewBox="0 0 '+W+' '+H+'" aria-hidden="true" style="overflow:visible"><line x1="'+PL+'" y1="'+(PT+z)+'" x2="'+(W-6)+'" y2="'+(PT+z)+'" stroke="var(--border)"/>'+b+l+'</svg>';
+  return '<svg width="100%" viewBox="0 0 '+W+' '+H+'" style="overflow:visible"><line x1="5" y1="'+(10+z)+'" x2="'+(W-5)+'" y2="'+(10+z)+'" stroke="var(--border)"/>'+b+'</svg>';
 }
 function hBarSVG(sd){
-  var W=320,bH=26,g=8,PL=90,PR=55,PT=5,H=PT+sd.length*(bH+g);
-  var mx=Math.max.apply(null,sd.map(function(d){return Math.abs(d.avg)}))||1,r='';
+  var W=320,bH=26,g=8,PL=95,PR=60,PT=5,H=PT+sd.length*(bH+g);
+  var mx=Math.max.apply(null,sd.map(function(d){return Math.abs(d.avg);}))||1,r='';
   sd.forEach(function(d,i){
-    var y=PT+i*(bH+g),bw=Math.abs(d.avg)/mx*(W-PL-PR),col=SC[d.sector],sign=d.avg>=0?'+':'';
-    r+='<text x="'+(PL-5)+'" y="'+(y+bH/2+4)+'" text-anchor="end" font-size="11" fill="var(--text2)">'+d.sector+'</text>';
-    r+='<rect x="'+PL+'" y="'+y+'" width="'+Math.max(2,bw)+'" height="'+bH+'" fill="'+col+'" rx="3" opacity=".85"/>';
-    r+='<text x="'+(PL+bw+4)+'" y="'+(y+bH/2+4)+'" font-size="11" fill="'+col+'" font-weight="700">'+sign+d.avg+'%</text>';
+    var y=PT+i*(bH+g),bw=Math.abs(d.avg)/mx*(W-PL-PR),col=SC[d.sector],sgn=d.avg>=0?'+':'';
+    r+='<text x="'+(PL-5)+'" y="'+(y+bH/2+4)+'" text-anchor="end" font-size="11" fill="var(--text2)">'+d.sector+'</text><rect x="'+PL+'" y="'+y+'" width="'+Math.max(2,bw)+'" height="'+bH+'" fill="'+col+'" rx="3" opacity=".85"/><text x="'+(PL+bw+4)+'" y="'+(y+bH/2+4)+'" font-size="11" fill="'+col+'" font-weight="700">'+sgn+d.avg+'%</text>';
   });
-  return'<svg width="100%" viewBox="0 0 '+W+' '+H+'" aria-hidden="true">'+r+'</svg>';
+  return '<svg width="100%" viewBox="0 0 '+W+' '+H+'">'+r+'</svg>';
 }
 function donutSVG(sd){
-  var sz=190,R=66,r=42,cx=sz/2,cy=sz/2,tot=sd.reduce(function(a,d){return a+d.count},0)||1;
+  var sz=180,R=62,r=40,cx=90,cy=90,tot=sd.reduce(function(a,d){return a+d.count;},0)||1;
   var ang=-Math.PI/2,sl='',lb='';
   sd.forEach(function(d){
     var a=(d.count/tot)*2*Math.PI,x1=cx+R*Math.cos(ang),y1=cy+R*Math.sin(ang);
     ang+=a;var x2=cx+R*Math.cos(ang),y2=cy+R*Math.sin(ang),mid=ang-a/2;
     var ix=cx+r*Math.cos(ang-a),iy=cy+r*Math.sin(ang-a),ix2=cx+r*Math.cos(ang),iy2=cy+r*Math.sin(ang);
     sl+='<path d="M'+ix+' '+iy+' L'+x1+' '+y1+' A'+R+' '+R+' 0 '+(a>Math.PI?1:0)+' 1 '+x2+' '+y2+' L'+ix2+' '+iy2+' A'+r+' '+r+' 0 '+(a>Math.PI?1:0)+' 0 '+ix+' '+iy+' Z" fill="'+SC[d.sector]+'" opacity=".85" stroke="var(--bg)" stroke-width="2"/>';
-    lb+='<text x="'+(cx+(R+17)*Math.cos(mid))+'" y="'+(cy+(R+17)*Math.sin(mid))+'" text-anchor="middle" font-size="8" fill="'+SC[d.sector]+'" font-weight="700">'+d.sector+' '+Math.round(d.count/tot*100)+'%</text>';
+    lb+='<text x="'+(cx+(R+16)*Math.cos(mid))+'" y="'+(cy+(R+16)*Math.sin(mid))+'" text-anchor="middle" font-size="8" fill="'+SC[d.sector]+'" font-weight="700">'+d.sector+'</text>';
   });
-  return'<svg width="'+sz+'" height="'+sz+'" aria-hidden="true">'+sl+lb+'<text x="'+cx+'" y="'+(cy-4)+'" text-anchor="middle" font-size="19" font-weight="800" fill="var(--text)">'+tot+'</text><text x="'+cx+'" y="'+(cy+12)+'" text-anchor="middle" font-size="9" fill="var(--text3)">stocks</text></svg>';
-}
-function lineSVG(d,col){
-  var W=480,H=90,PT=6,PL=4,iW=W-PL-4,iH=H-PT-6;
-  var vals=d.map(function(x){return x.v}),mn=Math.min.apply(null,vals),mx=Math.max.apply(null,vals),r=mx-mn||1;
-  var pts=d.map(function(x,i){return(PL+i/(d.length-1)*iW)+','+(PT+iH-((x.v-mn)/r)*iH)}).join(' ');
-  return'<svg width="100%" viewBox="0 0 '+W+' '+H+'" aria-hidden="true"><defs><linearGradient id="lg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="'+col+'" stop-opacity=".25"/><stop offset="100%" stop-color="'+col+'" stop-opacity="0"/></linearGradient></defs><polyline fill="url(#lg)" stroke="none" points="'+PL+','+(PT+iH)+' '+pts+' '+(PL+iW)+','+(PT+iH)+'"/><polyline fill="none" stroke="'+col+'" stroke-width="2" points="'+pts+'"/></svg>';
+  return '<svg width="'+sz+'" height="'+sz+'">'+sl+lb+'<text x="90" y="87" text-anchor="middle" font-size="18" font-weight="800" fill="var(--text)">'+tot+'</text><text x="90" y="103" text-anchor="middle" font-size="9" fill="var(--text3)">stocks</text></svg>';
 }
 
-// ── INIT ──────────────────────────────────────────────────
 function init(){
   var live=INJECTED!==null;
-  var st=document.getElementById('status');
-  st.className=live?'status-live':'status-demo';
-  st.textContent=live?'● Live · '+(DATA.generated_date||''):'⚠ Demo mode';
+  document.getElementById('status').className=live?'s-live':'s-demo';
+  document.getElementById('status').textContent=live?'● Live · '+(DATA.generated_date||''):'⚠ Demo';
   document.getElementById('subtitle').textContent='TOP '+stocks.length+' STOCKS · 3-MONTH';
   if(!live)document.getElementById('banner').style.display='block';
-  renderCards();renderSecBtns();renderStocks();renderCharts();renderSectors();
-  renderDividends();renderEarnings();renderInsider();renderToday();
-  loadSavedPrefs();
+  rCards();rSecBtns();renderStocks();rCharts();rSectors();rDivs();rEarnings();rInsider();rToday();
+  try{var t=localStorage.getItem('ngx-theme')||'dark';setTheme(t);}catch(e){}
 }
 
-function renderCards(){
-  var best=stocks.find(function(s){return s.ticker===sum.best_ticker});
+function rCards(){
+  var best=stocks.find(function(s){return s.ticker===sum.best_ticker;});
   var ac=sum.avg_change||0;
-  document.getElementById('cards').innerHTML=[
-    {icon:'📈',label:'Top Gainer',  value:best?'+'+best.change+'%':'--',     sub:best?best.ticker:'',          color:'var(--green)'},
-    {icon:'🟢',label:'Gainers',     value:sum.gainers||0,                    sub:'of '+stocks.length,          color:'var(--green)'},
-    {icon:'🔴',label:'Decliners',   value:sum.decliners||0,                  sub:'in the red',                 color:'var(--red)'},
-    {icon:'📊',label:'Avg 3M',      value:(ac>=0?'+':'')+ac.toFixed(2)+'%',  sub:'all sectors',                color:ac>=0?'var(--green)':'var(--red)'},
-    {icon:'🕐',label:'Updated',     value:DATA.generated_date||'--',         sub:'run cargo run to refresh',   color:'var(--text3)'},
-  ].map(function(c){
-    return'<div class="card"><div class="card-icon" aria-hidden="true">'+c.icon+'</div>'+
-      '<p class="card-label">'+c.label+'</p>'+
-      '<p class="card-value mono" style="color:'+c.color+'">'+c.value+'</p>'+
-      '<p class="card-sub">'+c.sub+'</p></div>';
+  var it=[
+    {icon:'📈',label:'Top Gainer',value:best?'+'+best.change+'%':'--',sub:best?best.ticker:'',color:'var(--green)'},
+    {icon:'🟢',label:'Gainers',value:sum.gainers||0,sub:'of '+stocks.length,color:'var(--green)'},
+    {icon:'🔴',label:'Decliners',value:sum.decliners||0,sub:'in the red',color:'var(--red)'},
+    {icon:'📊',label:'Avg 3M',value:(ac>=0?'+':'')+ac.toFixed(2)+'%',sub:'all sectors',color:ac>=0?'var(--green)':'var(--red)'},
+    {icon:'🕐',label:'Updated',value:DATA.generated_date||'--',sub:'cargo run to refresh',color:'var(--text3)'}
+  ];
+  document.getElementById('cards').innerHTML=it.map(function(c){
+    return '<div class="card"><div class="ci">'+c.icon+'</div><div class="cl">'+c.label+'</div><div class="cv mono" style="color:'+c.color+'">'+c.value+'</div><div class="cs">'+c.sub+'</div></div>';
   }).join('');
 }
 
-function renderSecBtns(){
+function rToday(){
+  document.getElementById('today-list').innerHTML=TODAY.map(function(item){
+    return '<div class="tc '+item.cls+'"><div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px"><div style="display:flex;align-items:flex-start;gap:9px;flex:1">'+(item.ticker?logo(item.ticker,28):'<div style="width:28px;height:28px;border-radius:5px;background:var(--bg3);display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0">'+item.icon+'</div>')+'<div><div style="font-weight:700;color:var(--text);font-size:13px;margin-bottom:3px">'+item.title+'</div><div style="color:var(--text2);font-size:12px;line-height:1.5">'+item.desc+'</div></div></div><span style="color:var(--text4);font-size:11px;white-space:nowrap">'+item.time+'</span></div></div>';
+  }).join('');
+}
+
+function rSecBtns(){
   document.getElementById('secbtns').innerHTML=['All'].concat(SECS).map(function(s){
     var a=S.sector===s,col=SC[s]||'var(--green)';
-    return'<button class="sbtn" style="background:'+(a?col+'22':'transparent')+';border-color:'+(a?col+'55':'var(--border)')+';color:'+(a?col:'var(--text3)')+'" onclick="setSec(\''+s+'\')" aria-pressed="'+a+'">'+s+'</button>';
+    return '<button class="sbtn" style="background:'+(a?col+'22':'transparent')+';border-color:'+(a?col+'55':'var(--border)')+';color:'+(a?col:'var(--text3)')+'" onclick="setSec(this.dataset.s)" data-s="'+s+'">'+s+'</button>';
   }).join('');
-}
-
-function clearSearch(){
-  S.search='';document.getElementById('search').value='';renderStocks();
 }
 
 function getRows(){
-  return stocks.filter(function(s){return S.sector==='All'||s.sector===S.sector})
-    .filter(function(s){var q=S.search.toLowerCase();return s.ticker.toLowerCase().indexOf(q)>-1||s.name.toLowerCase().indexOf(q)>-1})
+  return stocks.filter(function(s){return S.sector==='All'||s.sector===S.sector;})
+    .filter(function(s){var q=S.q.toLowerCase();return s.ticker.toLowerCase().indexOf(q)>-1||s.name.toLowerCase().indexOf(q)>-1;})
     .sort(function(a,b){
       var d=S.sortDir==='asc'?1:-1;
-      if(S.sortBy==='rank')  return(a.rank-b.rank)*d;
+      if(S.sortBy==='rank')return(a.rank-b.rank)*d;
       if(S.sortBy==='ticker')return a.ticker.localeCompare(b.ticker)*d;
-      if(S.sortBy==='name')  return a.name.localeCompare(b.name)*d;
+      if(S.sortBy==='name')return a.name.localeCompare(b.name)*d;
       if(S.sortBy==='sector')return a.sector.localeCompare(b.sector)*d;
       if(S.sortBy==='change')return(a.change-b.change)*d;
-      if(S.sortBy==='price') return(a.price-b.price)*d;
-      if(S.sortBy==='vol')   return(a.vol-b.vol)*d;
+      if(S.sortBy==='price')return(a.price-b.price)*d;
+      if(S.sortBy==='vol')return(a.vol-b.vol)*d;
       return 0;
     });
 }
 
 function renderStocks(){
   var rows=getRows(),medals=['🥇','🥈','🥉'];
-  var noRes=document.getElementById('no-results');
-  // AUDIT FIX [6.2 UX]: show empty state when no results
-  if(rows.length===0&&S.search){
-    noRes.style.display='block';
-    document.getElementById('slist').innerHTML='';
-    document.getElementById('tbody').innerHTML='';
-    renderDetail();return;
-  }
-  noRes.style.display='none';
-
-  // Mobile cards
+  document.getElementById('no-res').style.display=(rows.length===0&&S.q)?'block':'none';
   document.getElementById('slist').innerHTML=rows.map(function(s){
-    var pos=s.change>=0,col=SC[s.sector],hl=S.sel===s.ticker?' sel':'',sc=signalScore(s);
-    return'<article class="scard'+hl+'" onclick="selRow(\''+s.ticker+'\')" tabindex="0" role="button" aria-label="'+s.name+' — '+(pos?'+':'')+s.change.toFixed(2)+'% — click for details" onkeydown="if(event.key===\'Enter\'||event.key===\' \')selRow(\''+s.ticker+'\')">'+
-      '<div class="scard-top">'+
-        '<div style="display:flex;align-items:flex-start;gap:8px">'+
-          '<span class="mono" style="color:var(--text3);font-size:12px;min-width:20px;padding-top:2px" aria-hidden="true">'+(s.rank<=3?medals[s.rank-1]:s.rank)+'</span>'+
-          '<div style="display:flex;align-items:center;gap:6px">'+logoImg(s.ticker,28)+
-          '<div><p style="font-weight:800;font-size:15px;color:var(--text)">'+s.ticker+'</p>'+
-          '<p style="color:var(--text3);font-size:11px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+s.name+'</p></div></div>'+
-        '</div>'+
-        '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">'+
-          '<span class="pill '+(pos?'up':'dn')+' lg">'+(pos?'+':'')+s.change.toFixed(2)+'%</span>'+
-          '<span class="badge" style="background:'+col+'22;color:'+col+';border:1px solid '+col+'44">'+s.sector+'</span>'+
-        '</div>'+
-      '</div>'+
-      '<div class="scard-bottom">'+
-        '<span class="mono" style="color:var(--text2);font-size:13px">₦<strong style="color:var(--text)">'+s.price.toLocaleString()+'</strong></span>'+
-        signalHTML(sc)+
-        spk(s.sparkline,pos,65,22)+
-      '</div></article>';
+    var pos=s.change>=0,col=SC[s.sector],sc=sig(s);
+    var hl=S.sel===s.ticker?' style="border-color:var(--text3)"':'';
+    var t=s.ticker.replace(/'/g,"\\'");
+    return '<div class="scard"'+hl+' onclick="selRow(\''+t+'\')">'+'<div class="scard-t"><div style="display:flex;align-items:center;gap:8px"><span class="mono" style="color:var(--text3);font-size:11px;min-width:18px">'+(s.rank<=3?medals[s.rank-1]:s.rank)+'</span>'+logo(s.ticker,28)+'<div><div style="font-weight:800;font-size:14px">'+s.ticker+'</div><div style="color:var(--text3);font-size:11px;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+s.name+'</div></div></div><div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px"><span class="pill '+(pos?'up':'dn')+' lg">'+(pos?'+':'')+s.change.toFixed(2)+'%</span><span class="badge" style="background:'+col+'20;color:'+col+'">'+s.sector+'</span></div></div><div class="scard-b"><span class="mono" style="font-size:13px">₦<strong>'+s.price.toLocaleString()+'</strong></span>'+sigH(sc)+spk(s.sparkline,pos)+'</div></div>';
   }).join('');
-
-  // Desktop table
   ['rank','ticker','name','sector','price','change','vol'].forEach(function(c){
-    var el=document.getElementById('a-'+c);if(!el)return;
-    el.textContent=S.sortBy===c?(S.sortDir==='asc'?'▲':'▼'):'⇅';
-    el.style.opacity=S.sortBy===c?'1':'0.3';
+    var el=document.getElementById('a-'+c);
+    if(el){el.textContent=S.sortBy===c?(S.sortDir==='asc'?'▲':'▼'):'⇅';el.style.opacity=S.sortBy===c?'1':'0.3';}
   });
   document.getElementById('tbody').innerHTML=rows.map(function(s){
-    var pos=s.change>=0,col=SC[s.sector],hl=S.sel===s.ticker?' class="sel"':'',sc=signalScore(s);
-    return'<tr'+hl+' onclick="selRow(\''+s.ticker+'\')" tabindex="0" onkeydown="if(event.key===\'Enter\')selRow(\''+s.ticker+'\')" aria-label="'+s.name+'">'+
-      '<td class="mono" style="color:var(--text3)" aria-label="Rank '+(s.rank<=3?medals[s.rank-1]:s.rank)+'">'+(s.rank<=3?medals[s.rank-1]:s.rank)+'</td>'+
-      '<td><span class="mono" style="font-weight:700;color:var(--text)">'+s.ticker+'</span></td>'+
-      '<td>'+logoImg(s.ticker,26)+'</td>'+
-      '<td style="color:var(--text2);max-width:180px"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block">'+s.name+'</span></td>'+
-      '<td><span class="badge" style="background:'+col+'22;color:'+col+';border:1px solid '+col+'44">'+s.sector+'</span></td>'+
-      '<td style="text-align:right" class="mono"><strong>₦'+s.price.toLocaleString()+'</strong></td>'+
-      '<td style="text-align:right"><span class="pill '+(pos?'up':'dn')+'">'+(pos?'+':'')+s.change.toFixed(2)+'%</span></td>'+
-      '<td style="text-align:right;color:var(--text3)" class="mono">'+s.vol+'M</td>'+
-      '<td>'+signalHTML(sc)+'</td>'+
-      '<td style="padding:9px 14px 9px 11px">'+spk(s.sparkline,pos,65,22)+'</td>'+
-    '</tr>';
+    var pos=s.change>=0,col=SC[s.sector],sc=sig(s),hl=S.sel===s.ticker?' class="sel"':'';
+    var t=s.ticker.replace(/'/g,"\\'");
+    return '<tr'+hl+' onclick="selRow(\''+t+'\')">'+'<td class="mono" style="color:var(--text3)">'+(s.rank<=3?medals[s.rank-1]:s.rank)+'</td><td><span class="mono" style="font-weight:700">'+s.ticker+'</span></td><td>'+logo(s.ticker,24)+'</td><td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text2)">'+s.name+'</td><td><span class="badge" style="background:'+col+'20;color:'+col+'">'+s.sector+'</span></td><td style="text-align:right" class="mono"><strong>₦'+s.price.toLocaleString()+'</strong></td><td style="text-align:right"><span class="pill '+(pos?'up':'dn')+'">'+(pos?'+':'')+s.change.toFixed(2)+'%</span></td><td style="text-align:right;color:var(--text3)" class="mono">'+s.vol+'M</td><td>'+sigH(sc)+'</td><td>'+spk(s.sparkline,pos)+'</td></tr>';
   }).join('');
-  renderDetail();
+  rDetail();
 }
 
-function renderDetail(){
+function rDetail(){
   var det=document.getElementById('detail');
   if(!S.sel){det.style.display='none';return;}
-  var s=stocks.find(function(x){return x.ticker===S.sel});
+  var s=stocks.find(function(x){return x.ticker===S.sel;});
   if(!s){det.style.display='none';return;}
-  var col=SC[s.sector],pos=s.change>=0,sc=signalScore(s);
+  var col=SC[s.sector],pos=s.change>=0,sc=sig(s),t=s.ticker.replace(/'/g,"\\'");
   det.style.display='block';det.style.border='1px solid '+col+'44';
-  var earn=EARNINGS_DATA.find(function(e){return e.ticker===s.ticker});
-  var ins=INSIDER_DATA.find(function(d){return d.ticker===s.ticker});
-  det.innerHTML=
-    '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;gap:8px">'+
-      '<div style="display:flex;align-items:center;gap:10px">'+logoImg(s.ticker,40)+
-        '<div><div style="display:flex;align-items:center;gap:8px;margin-bottom:3px;flex-wrap:wrap">'+
-          '<span class="mono" style="font-size:19px;font-weight:800;color:var(--text)">'+s.ticker+'</span>'+
-          '<span class="badge" style="background:'+col+'22;color:'+col+';border:1px solid '+col+'44">'+s.sector+'</span>'+
-          signalHTML(sc)+
-        '</div><p style="color:var(--text3);font-size:12px">'+s.name+'</p></div>'+
-      '</div>'+
-      '<button class="btn" onclick="selRow(\''+s.ticker+'\')" aria-label="Close details">✕ Close</button>'+
-    '</div>'+
-    '<div class="dstats">'+
-      [['Price','₦'+s.price.toLocaleString(),'var(--text)'],['3M Ago','₦'+s.prev.toLocaleString(),'var(--text2)'],
-       ['Change',(pos?'+':'')+s.change.toFixed(2)+'%',pos?'var(--green)':'var(--red)'],
-       ['Volume',s.vol+'M','var(--amber)'],['Signal',sc+'/100',sc>=70?'var(--green)':sc>=40?'var(--amber)':'var(--red)']]
-      .map(function(x){return'<div class="dstat"><p class="dstat-label">'+x[0]+'</p><p class="dstat-value mono" style="color:'+x[2]+'">'+x[1]+'</p></div>';}).join('')+
-    '</div>'+
-    (earn?'<div style="background:var(--bg);border-radius:8px;padding:10px 12px;margin-bottom:10px;border-left:3px solid '+earn.color+'"><p style="color:var(--text3);font-size:10px;text-transform:uppercase;margin-bottom:4px">FY2025 Results</p><div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:4px"><span style="color:var(--text2);font-size:12px">Revenue: <strong style="color:var(--text)">'+earn.revenue+'</strong></span><span style="color:var(--text2);font-size:12px">Profit: <strong style="color:var(--green)">'+earn.profit+'</strong></span></div><p style="color:var(--text3);font-size:12px">'+earn.highlight+'</p></div>':'')+
-    (ins?'<div style="background:var(--bg);border-radius:8px;padding:10px 12px;margin-bottom:10px;border-left:3px solid '+(ins.type==='BUY'?'var(--green)':'var(--red)')+'"><p style="color:var(--text3);font-size:10px;text-transform:uppercase;margin-bottom:4px">Insider Activity</p><p style="color:var(--text2);font-size:12px"><strong style="color:var(--text)">'+ins.director+'</strong> · '+ins.date+' · '+ins.units+' · '+ins.value+'</p><p style="color:var(--text3);font-size:12px;margin-top:3px">'+ins.signal+'</p></div>':'')+
-    (s.sparkline&&s.sparkline.length>1?lineSVG(s.sparkline.map(function(v){return{v:v}}),col):'');
+  det.innerHTML='<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:11px;gap:8px"><div style="display:flex;align-items:center;gap:9px">'+logo(s.ticker,36)+'<div><span class="mono" style="font-size:18px;font-weight:800">'+s.ticker+'</span> <span class="badge" style="background:'+col+'20;color:'+col+'">'+s.sector+'</span> '+sigH(sc)+'<div style="color:var(--text3);font-size:12px;margin-top:2px">'+s.name+'</div></div></div><button class="btn" onclick="selRow(\''+t+'\')">✕ Close</button></div><div class="dstats">'+[['Price','₦'+s.price.toLocaleString(),'var(--text)'],['3M Ago','₦'+s.prev.toLocaleString(),'var(--text2)'],['Change',(pos?'+':'')+s.change.toFixed(2)+'%',pos?'var(--green)':'var(--red)'],['Volume',s.vol+'M','var(--amber)'],['Signal',sc+'/100',sc>=70?'var(--green)':sc>=40?'var(--amber)':'var(--red)']].map(function(x){return'<div class="dstat"><div class="dslbl">'+x[0]+'</div><div class="dsval mono" style="color:'+x[2]+'">'+x[1]+'</div></div>';}).join('')+'</div>';
 }
 
-function renderCharts(){
-  var sd=SECS.map(function(s){var g=stocks.filter(function(x){return x.sector===s});return{sector:s,avg:g.length?+(g.reduce(function(a,x){return a+x.change},0)/g.length).toFixed(2):0,count:g.length};});
+function rCharts(){
+  var sd=SECS.map(function(s){var g=stocks.filter(function(x){return x.sector===s;});return{sector:s,avg:g.length?+(g.reduce(function(a,x){return a+x.change;},0)/g.length).toFixed(2):0,count:g.length};});
   document.getElementById('c-bar').innerHTML=barSVG(stocks);
   document.getElementById('c-hbar').innerHTML=hBarSVG(sd);
   document.getElementById('c-donut').innerHTML=donutSVG(sd);
 }
 
-function renderSectors(){
-  document.getElementById('secgrid').innerHTML=SECS.map(function(sec){
-    var g=stocks.filter(function(s){return s.sector===sec}),col=SC[sec];
-    var avg=g.length?(g.reduce(function(a,s){return a+s.change},0)/g.length).toFixed(2):'0.00';
-    var best=g.reduce(function(b,s){return s.change>b.change?s:b},g[0]||{ticker:'--',change:0});
-    var worst=g.reduce(function(b,s){return s.change<b.change?s:b},g[0]||{ticker:'--',change:0});
-    var apos=parseFloat(avg)>=0;
-    return'<article class="sec-card" style="border:1px solid '+col+'33">'+
-      '<div style="position:absolute;top:-28px;right:-28px;width:90px;height:90px;background:'+col+'11;border-radius:50%" aria-hidden="true"></div>'+
-      '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:11px">'+
-        '<div><p style="color:'+col+';font-size:14px;font-weight:800;margin-bottom:2px">'+sec+'</p>'+
-        '<p style="color:var(--text3);font-size:11px">'+g.length+' stocks</p></div>'+
-        '<span class="pill '+(apos?'up':'dn')+' lg">'+(apos?'+':'')+avg+'%</span></div>'+
-      g.map(function(s){return'<div class="sec-row"><span class="mono" style="color:var(--text2)">'+s.ticker+'</span><span class="mono" style="color:'+(s.change>=0?'var(--green)':'var(--red)')+';font-weight:700">'+(s.change>=0?'+':'')+s.change.toFixed(2)+'%</span></div>';}).join('')+
-      '<div style="display:flex;gap:7px;margin-top:9px">'+
-        '<div style="flex:1;background:rgba(34,197,94,.07);border-radius:6px;padding:7px 9px"><p style="font-size:10px;color:var(--text3);text-transform:uppercase;margin-bottom:2px">Best</p><p class="mono" style="color:var(--green);font-size:11px;font-weight:700">'+best.ticker+' '+(best.change>=0?'+':'')+best.change.toFixed(1)+'%</p></div>'+
-        '<div style="flex:1;background:rgba(239,68,68,.07);border-radius:6px;padding:7px 9px"><p style="font-size:10px;color:var(--text3);text-transform:uppercase;margin-bottom:2px">Worst</p><p class="mono" style="color:var(--red);font-size:11px;font-weight:700">'+worst.ticker+' '+worst.change.toFixed(1)+'%</p></div>'+
-      '</div></article>';
+function rSectors(){
+  document.getElementById('sgrid').innerHTML=SECS.map(function(sec){
+    var g=stocks.filter(function(s){return s.sector===sec;}),col=SC[sec];
+    var avg=g.length?(g.reduce(function(a,s){return a+s.change;},0)/g.length).toFixed(2):'0.00';
+    var best=g.length?g.reduce(function(b,s){return s.change>b.change?s:b;},g[0]):{ticker:'--',change:0};
+    var worst=g.length?g.reduce(function(b,s){return s.change<b.change?s:b;},g[0]):{ticker:'--',change:0};
+    var ap=parseFloat(avg)>=0;
+    return '<div class="ssc" style="border:1px solid '+col+'33"><div style="position:absolute;top:-20px;right:-20px;width:80px;height:80px;background:'+col+'10;border-radius:50%"></div><div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px"><div><div style="color:'+col+';font-size:14px;font-weight:800">'+sec+'</div><div style="color:var(--text3);font-size:11px">'+g.length+' stocks</div></div><span class="pill '+(ap?'up':'dn')+' lg">'+(ap?'+':'')+avg+'%</span></div>'+g.map(function(s){return '<div class="sr"><span class="mono" style="color:var(--text2)">'+s.ticker+'</span><span class="mono" style="color:'+(s.change>=0?'var(--green)':'var(--red)')+';font-weight:700">'+(s.change>=0?'+':'')+s.change.toFixed(2)+'%</span></div>';}).join('')+'<div style="display:flex;gap:7px;margin-top:9px"><div style="flex:1;background:rgba(34,197,94,.07);border-radius:6px;padding:7px 9px"><div style="font-size:10px;color:var(--text3);text-transform:uppercase;margin-bottom:2px">Best</div><div class="mono" style="color:var(--green);font-size:11px;font-weight:700">'+best.ticker+' '+(best.change>=0?'+':'')+best.change.toFixed(1)+'%</div></div><div style="flex:1;background:rgba(239,68,68,.07);border-radius:6px;padding:7px 9px"><div style="font-size:10px;color:var(--text3);text-transform:uppercase;margin-bottom:2px">Worst</div><div class="mono" style="color:var(--red);font-size:11px;font-weight:700">'+worst.ticker+' '+worst.change.toFixed(1)+'%</div></div></div></div>';
   }).join('');
 }
 
-function renderDividends(){
-  var sColor={upcoming:'var(--green)',declared:'var(--amber)',paid:'var(--text3)'};
-  var sBg={upcoming:'rgba(34,197,94,.1)',declared:'rgba(245,158,11,.1)',paid:'rgba(71,85,105,.1)'};
+function rDivs(){
+  var sC={upcoming:'var(--green)',declared:'var(--amber)',paid:'var(--text3)'};
+  var sB={upcoming:'rgba(34,197,94,.1)',declared:'rgba(245,158,11,.1)',paid:'rgba(71,85,105,.1)'};
   document.getElementById('div-tbody').innerHTML=DIVS.map(function(d){
-    var sc=sColor[d.status],sb=sBg[d.status];
-    return'<tr><td>'+logoImg(d.ticker,26)+'</td>'+
-      '<td><p style="font-weight:700;color:var(--text);font-size:13px">'+d.company+'</p><p class="mono" style="color:var(--text3);font-size:11px">'+d.ticker+'</p></td>'+
-      '<td style="text-align:right;font-weight:700;color:var(--green)" class="mono">'+d.div+'</td>'+
-      '<td style="color:var(--text2);font-size:12px">'+d.bonus+'</td>'+
-      '<td style="color:var(--text2);font-size:12px">'+d.date+'</td>'+
-      '<td><span style="background:'+sb+';color:'+sc+';border-radius:5px;padding:2px 8px;font-size:11px;font-weight:700;text-transform:capitalize">'+d.status+'</span></td></tr>';
+    return '<tr><td>'+logo(d.ticker,24)+'</td><td><div style="font-weight:700;color:var(--text);font-size:13px">'+d.company+'</div><div class="mono" style="color:var(--text3);font-size:11px">'+d.ticker+'</div></td><td style="text-align:right;font-weight:700;color:var(--green)" class="mono">'+d.div+'</td><td style="color:var(--text2);font-size:12px">'+d.bonus+'</td><td style="color:var(--text2);font-size:12px">'+d.date+'</td><td><span style="background:'+sB[d.status]+';color:'+sC[d.status]+';border-radius:4px;padding:2px 7px;font-size:11px;font-weight:700">'+d.status+'</span></td></tr>';
   }).join('');
 }
 
-function renderEarnings(){
-  document.getElementById('earnings-grid').innerHTML=EARNINGS_DATA.map(function(e){
-    return'<article class="earnings-card" style="border-left:3px solid '+e.color+'">'+
-      '<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">'+
-        logoImg(e.ticker,36)+
-        '<div><p style="font-weight:800;font-size:14px;color:var(--text)">'+e.name+'</p>'+
-        '<p class="mono" style="color:var(--text3);font-size:11px">'+e.ticker+' · FY2025</p></div>'+
-      '</div>'+
-      '<dl style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">'+
-        [['Revenue',e.revenue,'var(--text)'],['Profit',e.profit,'var(--green)'],['Dividend',e.dividend,'var(--amber)'],['YoY Growth','+'+e.yoy_growth+'%',e.color]]
-        .map(function(x){return'<div style="background:var(--bg);border-radius:7px;padding:8px 10px"><dt style="color:var(--text3);font-size:10px;text-transform:uppercase;margin-bottom:2px">'+x[0]+'</dt><dd class="mono" style="color:'+x[2]+';font-size:13px;font-weight:700">'+x[1]+'</dd></div>';}).join('')+
-      '</dl>'+
-      '<p style="color:var(--text3);font-size:12px;line-height:1.5">'+e.highlight+'</p>'+
-    '</article>';
+function rEarnings(){
+  document.getElementById('egrid').innerHTML=EARNINGS.map(function(e){
+    return '<div class="ec" style="border-left:3px solid '+e.color+'"><div style="display:flex;align-items:center;gap:9px;margin-bottom:10px">'+logo(e.ticker,34)+'<div><div style="font-weight:800;font-size:14px">'+e.name+'</div><div class="mono" style="color:var(--text3);font-size:11px">'+e.ticker+' · FY2025</div></div></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:9px">'+[['Revenue',e.revenue,'var(--text)'],['Profit',e.profit,'var(--green)'],['Dividend',e.dividend,'var(--amber)'],['YoY','+'+e.growth+'%',e.color]].map(function(x){return '<div style="background:var(--bg);border-radius:6px;padding:7px 9px"><div style="color:var(--text3);font-size:10px;text-transform:uppercase;margin-bottom:2px">'+x[0]+'</div><div class="mono" style="color:'+x[2]+';font-size:12px;font-weight:700">'+x[1]+'</div></div>';}).join('')+'</div><div style="color:var(--text3);font-size:12px;line-height:1.5">'+e.note+'</div></div>';
   }).join('');
 }
 
-function renderInsider(){
-  document.getElementById('insider-feed').innerHTML=INSIDER_DATA.map(function(d){
-    var isBuy=d.type==='BUY',col=isBuy?'var(--green)':d.type==='SELL'?'var(--red)':'var(--blue)';
-    return'<article class="insider-card '+(isBuy?'buy':d.type==='SELL'?'sell':'')+'" role="article">'+
-      '<div style="display:flex;align-items:flex-start;gap:10px">'+
-        logoImg(d.ticker,32)+
-        '<div style="flex:1">'+
-          '<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;margin-bottom:5px">'+
-            '<div><span class="mono" style="font-weight:800;color:var(--text);font-size:14px">'+d.ticker+'</span> <span style="color:var(--text3);font-size:12px">'+d.company+'</span></div>'+
-            '<span style="background:'+col+'22;color:'+col+';border:1px solid '+col+'44;border-radius:5px;padding:3px 9px;font-size:11px;font-weight:700">'+d.badge+'</span>'+
-          '</div>'+
-          '<p style="color:var(--text2);font-size:12px;margin-bottom:4px"><strong style="color:var(--text)">'+d.director+'</strong></p>'+
-          '<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:5px">'+
-            '<span style="color:var(--text3);font-size:12px">📅 '+d.date+'</span>'+
-            '<span style="color:var(--text3);font-size:12px">📦 '+d.units+'</span>'+
-            '<span style="color:'+col+';font-size:12px;font-weight:600">'+d.value+'</span>'+
-          '</div>'+
-          '<p style="color:var(--text3);font-size:12px;line-height:1.5">'+d.signal+'</p>'+
-        '</div>'+
-      '</div>'+
-    '</article>';
+function rInsider(){
+  document.getElementById('ins-feed').innerHTML=INSIDER.map(function(d){
+    var col=d.type==='BUY'?'var(--green)':d.type==='SELL'?'var(--red)':'var(--blue)';
+    return '<div class="ic '+(d.type==='BUY'?'buy':'sell')+'"><div style="display:flex;align-items:flex-start;gap:9px">'+logo(d.ticker,30)+'<div style="flex:1"><div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:5px;margin-bottom:4px"><span class="mono" style="font-weight:800;font-size:14px">'+d.ticker+'</span> <span style="color:var(--text3);font-size:12px">'+d.company+'</span><span style="background:'+col+'20;color:'+col+';border-radius:4px;padding:2px 8px;font-size:11px;font-weight:700">'+d.badge+'</span></div><div style="color:var(--text2);font-size:12px;margin-bottom:3px"><strong>'+d.director+'</strong></div><div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:4px"><span style="color:var(--text3);font-size:12px">📅 '+d.date+'</span><span style="color:var(--text3);font-size:12px">📦 '+d.units+'</span><span style="color:'+col+';font-size:12px;font-weight:600">'+d.value+'</span></div><div style="color:var(--text3);font-size:12px;line-height:1.5">'+d.signal+'</div></div></div></div>';
   }).join('');
 }
 
-function renderToday(){
-  document.getElementById('today-feed').innerHTML=TODAY_FEED.map(function(item){
-    return'<article class="today-item '+item.type+'">'+
-      '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px">'+
-        '<div style="display:flex;align-items:flex-start;gap:10px;flex:1">'+
-          (item.ticker?logoImg(item.ticker,32):'<div style="width:32px;height:32px;border-radius:6px;background:var(--bg3);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0" aria-hidden="true">'+item.icon+'</div>')+
-          '<div>'+
-            '<p style="font-weight:700;color:var(--text);font-size:13px;margin-bottom:3px">'+item.title+'</p>'+
-            '<p style="color:var(--text2);font-size:12px;line-height:1.5">'+item.desc+'</p>'+
-          '</div>'+
-        '</div>'+
-        '<time style="color:var(--text4);font-size:11px;white-space:nowrap;margin-top:2px">'+item.time+'</time>'+
-      '</div>'+
-    '</article>';
-  }).join('');
-}
-
-// ── TAB SWITCHING with ARIA ────────────────────────────────
-function switchTab(id,btn){
+function sw(id,btn){
   ['today','stocks','charts','sectors','dividends','earnings','insider'].forEach(function(t){
-    var panel=document.getElementById('tab-'+t);
-    var tabBtn=document.getElementById('t-'+t);
-    panel.style.display=t===id?'block':'none';
-    if(tabBtn){tabBtn.setAttribute('aria-selected',String(t===id));tabBtn.classList.toggle('active',t===id);}
+    var el=document.getElementById('tab-'+t);
+    if(el)el.style.display=t===id?'block':'none';
   });
+  document.querySelectorAll('.tab').forEach(function(b){b.classList.remove('on');});
+  if(btn)btn.classList.add('on');
 }
-
-// ── HANDLERS ──────────────────────────────────────────────
-function setSec(s){S.sector=s;renderSecBtns();renderStocks();}
-function srt(col){if(S.sortBy===col)S.sortDir=S.sortDir==='asc'?'desc':'asc';else{S.sortBy=col;S.sortDir='desc';}renderStocks();}
+function setSec(s){S.sector=s;rSecBtns();renderStocks();}
+function srt(c){if(S.sortBy===c)S.sortDir=S.sortDir==='asc'?'desc':'asc';else{S.sortBy=c;S.sortDir='desc';}renderStocks();}
 function selRow(t){S.sel=S.sel===t?null:t;renderStocks();}
 
-// Bell: ARIA expanded state
-function toggleBell(){
-  var p=document.getElementById('bell-panel');
-  var btn=document.getElementById('bell-btn');
-  var isOpen=p.classList.toggle('open');
-  btn.setAttribute('aria-expanded',String(isOpen));
-}
-document.addEventListener('click',function(e){
-  var wrap=document.getElementById('bell-wrap');
-  if(!wrap.contains(e.target)){
-    document.getElementById('bell-panel').classList.remove('open');
-    document.getElementById('bell-btn').setAttribute('aria-expanded','false');
-  }
-});
-// Escape key closes bell panel
-document.addEventListener('keydown',function(e){
-  if(e.key==='Escape'){
-    document.getElementById('bell-panel').classList.remove('open');
-    document.getElementById('bell-btn').setAttribute('aria-expanded','false');
-  }
-});
-
-function pushAlert(body,type){
-  S.alerts.unshift({id:Date.now(),time:new Date().toLocaleTimeString(),body:body,type:type});
-  if(S.alerts.length>20)S.alerts.pop();
-  var cnt=document.getElementById('bell-count');
-  cnt.style.display='flex';cnt.textContent=S.alerts.length>9?'9+':S.alerts.length;
-  document.getElementById('alerts-list').innerHTML=S.alerts.map(function(a){
-    return'<div class="alert-item">'+
-      '<div style="width:6px;height:6px;border-radius:50%;margin-top:4px;flex-shrink:0;background:'+(a.type==='up'?'var(--green)':a.type==='down'?'var(--red)':'var(--blue)')+'" aria-hidden="true"></div>'+
-      '<div><p style="color:var(--text);font-size:12px">'+a.body+'</p>'+
-      '<p style="color:var(--text3);font-size:11px;margin-top:2px">'+a.time+'</p></div></div>';
-  }).join('');
-}
-
-async function enableNotif(){
-  if(!('Notification'in window)){alert('Notifications not supported on this browser.');return;}
-  var perm=await Notification.requestPermission();
-  if(perm==='granted'){
-    S.notifOn=true;
-    localStorage.setItem('ngx-notif','true'); // AUDIT FIX [3.4 UX]: persist
-    document.getElementById('bell-btn').style.background='rgba(34,197,94,0.15)';
-    var nb=document.getElementById('notif-btn');nb.className='btn-red';nb.textContent='Disable Notifications';nb.onclick=disableNotif;
-    pushAlert('Alerts ON ≥'+document.getElementById('thr').value+'%','info');
-    startPoll();
-  }
-}
-function disableNotif(){
-  S.notifOn=false;clearInterval(S.timer);
-  localStorage.removeItem('ngx-notif'); // AUDIT FIX [3.4 UX]: clear persisted state
-  document.getElementById('bell-btn').style.background='var(--bg3)';
-  var nb=document.getElementById('notif-btn');nb.className='btn-green';nb.textContent='Enable Notifications';nb.onclick=enableNotif;
-}
-function startPoll(){
-  clearInterval(S.timer);
-  S.timer=setInterval(function(){
-    var thr=+document.getElementById('thr').value;
-    stocks.filter(function(s){return Math.abs(s.change)>=thr}).slice(0,3).forEach(function(s){
-      var body=(s.change>=0?'UP ↑':'DOWN ↓')+' '+s.ticker+': '+(s.change>=0?'+':'')+s.change.toFixed(2)+'% | ₦'+s.price.toLocaleString();
-      if(S.notifOn&&Notification.permission==='granted')new Notification('NGX Radar',{body:body,icon:'data:image/svg+xml,<svg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 100 100\'><text y=\'.9em\' font-size=\'90\'>🇳🇬</text></svg>'});
-      pushAlert(body,s.change>=0?'up':'down');
-    });
-  },30000);
-}
-function demoAlerts(){
-  [].concat(stocks).sort(function(a,b){return Math.abs(b.change)-Math.abs(a.change)}).slice(0,5).forEach(function(s,i){
-    setTimeout(function(){
-      var body=(s.change>=0?'UP ↑':'DOWN ↓')+' '+s.ticker+': '+(s.change>=0?'+':'')+s.change.toFixed(2)+'% | ₦'+s.price.toLocaleString();
-      if(S.noti"##;
+init();
+</script>
+</body>
+</html>
+"##;
 const MARKER: &str = "var INJECTED = null; /* <<NGX_DATA>> */";
 
 pub fn export_html(stocks: &[Stock]) -> Result<String> {
@@ -1053,27 +525,16 @@ pub fn fallback_html() -> String {
 }
 
 pub fn export_csv(stocks: &[Stock]) -> Result<String> {
-    let filename = format!(
-        "ngx_top{}_{}.csv",
-        stocks.len(),
-        Local::now().format("%Y-%m-%d")
-    );
+    let filename = format!("ngx_top{}_{}.csv", stocks.len(), Local::now().format("%Y-%m-%d"));
     let file = std::fs::File::create(&filename)?;
     let mut wtr = csv::Writer::from_writer(file);
-    wtr.write_record(&[
-        "Rank", "Ticker", "Company", "Sector",
-        "Price (NGN)", "3M Ago (NGN)", "% Change", "Avg Vol (M)",
-    ])?;
+    wtr.write_record(&["Rank","Ticker","Company","Sector","Price (NGN)","3M Ago (NGN)","% Change","Avg Vol (M)"])?;
     for (i, s) in stocks.iter().enumerate() {
         wtr.write_record(&[
-            (i + 1).to_string(),
-            s.ticker.clone(),
-            s.company_name.clone(),
+            (i + 1).to_string(), s.ticker.clone(), s.company_name.clone(),
             s.sector.display().to_string(),
-            format!("{:.2}", s.current_price),
-            format!("{:.2}", s.price_3m_ago),
-            format!("{:+.2}", s.percent_change),
-            format!("{:.2}", s.avg_volume / 1_000_000.0),
+            format!("{:.2}", s.current_price), format!("{:.2}", s.price_3m_ago),
+            format!("{:+.2}", s.percent_change), format!("{:.2}", s.avg_volume / 1_000_000.0),
         ])?;
     }
     wtr.flush()?;
@@ -1087,29 +548,18 @@ fn build_payload(stocks: &[Stock]) -> Value {
         "generated_date": Local::now().format("%d %b %Y, %H:%M").to_string(),
         "total": stocks.len(),
         "stocks": stocks.iter().enumerate().map(|(i, s)| json!({
-            "rank":      i + 1,
-            "ticker":    s.ticker,
-            "name":      s.company_name,
-            "sector":    s.sector.display(),
-            "price":     round2(s.current_price),
-            "prev":      round2(s.price_3m_ago),
-            "change":    round2(s.percent_change),
-            "vol":       round2(s.avg_volume / 1_000_000.0),
-            "sparkline": s.history.iter().rev().take(12).rev()
-                          .map(|p| round2(p.close))
-                          .collect::<Vec<f64>>(),
+            "rank": i+1, "ticker": s.ticker, "name": s.company_name,
+            "sector": s.sector.display(), "price": round2(s.current_price),
+            "prev": round2(s.price_3m_ago), "change": round2(s.percent_change),
+            "vol": round2(s.avg_volume / 1_000_000.0),
+            "sparkline": s.history.iter().rev().take(12).rev().map(|p| round2(p.close)).collect::<Vec<f64>>(),
         })).collect::<Vec<Value>>(),
         "summary": {
-            "gainers":      stocks.iter().filter(|s| s.percent_change > 0.0).count(),
-            "decliners":    stocks.iter().filter(|s| s.percent_change <= 0.0).count(),
-            "avg_change":   round2(stocks.iter().map(|s| s.percent_change).sum::<f64>()
-                                   / stocks.len().max(1) as f64),
-            "best_ticker":  stocks.iter()
-                .max_by(|a, b| a.percent_change.partial_cmp(&b.percent_change).unwrap())
-                .map(|s| s.ticker.clone()).unwrap_or_default(),
-            "worst_ticker": stocks.iter()
-                .min_by(|a, b| a.percent_change.partial_cmp(&b.percent_change).unwrap())
-                .map(|s| s.ticker.clone()).unwrap_or_default(),
+            "gainers":  stocks.iter().filter(|s| s.percent_change > 0.0).count(),
+            "decliners":stocks.iter().filter(|s| s.percent_change <= 0.0).count(),
+            "avg_change": round2(stocks.iter().map(|s| s.percent_change).sum::<f64>() / stocks.len().max(1) as f64),
+            "best_ticker":  stocks.iter().max_by(|a,b| a.percent_change.partial_cmp(&b.percent_change).unwrap()).map(|s| s.ticker.clone()).unwrap_or_default(),
+            "worst_ticker": stocks.iter().min_by(|a,b| a.percent_change.partial_cmp(&b.percent_change).unwrap()).map(|s| s.ticker.clone()).unwrap_or_default(),
         }
     })
 }
