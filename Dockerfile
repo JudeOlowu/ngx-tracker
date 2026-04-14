@@ -1,1 +1,16 @@
-FROM rust:1.85-slim as builderecho WORKDIR /appecho RUN apt-get update && apt-get install -y pkg-config libssl-dev ca-certificates && rm -rf /var/lib/apt/lists/*echo COPY Cargo.toml Cargo.lock* ./echo RUN mkdir src && echo "fn main() {}" > src/main.rs && cargo build --release 2>/dev/null; rm -f src/main.rsecho COPY src ./srcecho RUN cargo build --releaseecho FROM debian:bookworm-slimecho WORKDIR /appecho RUN apt-get update && apt-get install -y ca-certificates libssl3 && rm -rf /var/lib/apt/lists/*echo COPY --from=builder /app/target/release/ngx_screener .echo ENV PORT=3000echo ENV RUST_LOG=infoecho EXPOSE $PORTecho CMD ["./ngx_screener", "--serve"]
+FROM rust:1.85-slim AS builder
+WORKDIR /app
+RUN apt-get update && apt-get install -y pkg-config libssl-dev ca-certificates && rm -rf /var/lib/apt/lists/*
+COPY Cargo.toml Cargo.lock* ./
+RUN mkdir src && echo "fn main() {}" > src/main.rs && cargo build --release || true && rm -f src/main.rs
+COPY src ./src
+RUN cargo build --release --locked
+
+FROM debian:bookworm-slim
+WORKDIR /app
+RUN apt-get update && apt-get install -y ca-certificates libssl3 && rm -rf /var/lib/apt/lists/*
+COPY --from=builder /app/target/release/ngx_screener .
+ENV PORT=3000
+ENV RUST_LOG=info
+EXPOSE $PORT
+CMD ["./ngx_screener", "--serve"]
