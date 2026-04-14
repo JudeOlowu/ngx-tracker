@@ -3,6 +3,7 @@
 // AUDIT FIX [10.1]: Custom 404 handler
 // AUDIT FIX [4.5]: Cache-Control headers on API responses
 
+eprintln!("BINARY STARTED");
 async fn main() -> Result<()> {
     eprintln!("BINARY STARTED");  // add this line
     dotenv::dotenv().ok();
