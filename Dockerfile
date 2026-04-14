@@ -10,7 +10,11 @@ FROM debian:bookworm-slim
 WORKDIR /app
 RUN apt-get update && apt-get install -y ca-certificates libssl3 && rm -rf /var/lib/apt/lists/*
 COPY --from=builder /app/target/release/ngx_screener .
+
+# Debug: show what libraries the binary needs
+RUN ldd ./ngx_screener
+
 ENV PORT=3000
-ENV RUST_LOG=info
+ENV RUST_LOG=debug
 EXPOSE $PORT
 CMD ["./ngx_screener", "--serve"]
