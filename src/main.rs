@@ -6,7 +6,6 @@
 async fn main() -> Result<()> {
     eprintln!("BINARY STARTED");  // add this line
     dotenv::dotenv().ok();
-    // ... rest of your code
 mod display;
 mod exporter;
 mod fetcher;
