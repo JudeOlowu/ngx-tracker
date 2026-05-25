@@ -11,6 +11,9 @@ on:
   # Allow manual trigger from GitHub UI
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
@@ -42,17 +45,17 @@ jobs:
 
       - name: Prepare for deployment
         run: |
-          cp ngx_live.html index.html
-          echo "Generated at: $(date)" >> build_log.txt
-          echo "Branch: ${{ github.ref_name }}" >> build_log.txt
+          mkdir -p public
+          cp ngx_live.html public/index.html
+          echo "Generated at: $(date)" >> public/build_log.txt
+          echo "Branch: ${{ github.ref_name }}" >> public/build_log.txt
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./
+          publish_dir: ./public
           publish_branch: gh-pages
-          include_files: index.html
           commit_message: "🇳🇬 Auto-update NGX data - ${{ github.run_id }}"
 
       - name: Summary
