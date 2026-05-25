@@ -1,1 +1,271 @@
-mod display;\nmod exporter;\nmod fetcher;\nmod insider;\nmod models;\nmod screener;\n\nuse anyhow::Result;\nuse axum::{\n    extract::State,\n    http::{header, HeaderValue, Method, StatusCode, Uri},\n    response::IntoResponse,\n    routing::get,\n    Router,\n};\nuse clap::Parser;\nuse reqwest::Client;\nuse std::sync::{Arc, RwLock};\nuse std::time::Duration;\nuse tokio::time;\nuse tower::ServiceBuilder;\nuse tower_http::{\n    cors::{Any, CorsLayer},\n    set_header::SetResponseHeaderLayer,\n};\nuse tracing::info;\nuse tracing_subscriber::EnvFilter;\n\n#[derive(Clone)]\npub struct AppState {\n    pub html:            Arc<RwLock<String>>,\n    pub json:            Arc<RwLock<String>>,\n    pub insider_alerts:  Arc<RwLock<Vec<insider::InsiderAlert>>>,\n    pub request_count:   Arc<std::sync::atomic::AtomicU64>,\n}\n\n#[derive(Parser, Debug)]\n#[command(name = \"ngx_screener\", about = \"NGX Radar — Nigerian Stock Exchange\")]\nstruct Cli {\n    #[arg(long)]\n    serve: bool,\n    #[arg(short, long, default_value_t = 30)]\n    top: usize,\n    #[arg(short, long)]\n    sector: Option<String>,\n    #[arg(short, long, default_value_t = false)]\n    export: bool,\n    #[arg(long, default_value = \"change\")]\n    sort_by: String,\n}\n\n#[tokio::main]\nasync fn main() -> Result<()> {\n    dotenv::dotenv().ok();\n    tracing_subscriber::fmt()\n        .with_env_filter(EnvFilter::from_default_env())\n        .with_target(false)\n        .init();\n\n    let cli   = Cli::parse();\n    let port_opt = std::env::var(\"PORT\").ok();\n    \n    // FIX: Only enter serve mode if --serve is explicitly passed \n    // OR if we are on a known cloud platform (Railway/Render) with a PORT.\n    // We check for RAILWAY_ENVIRONMENT specifically to avoid ghost servers in GitHub CI.\n    let serve_mode = cli.serve\n        || (port_opt.is_some() && (std::env::var(\"RAILWAY_ENVIRONMENT\").is_ok() || std::env::var(\"RENDER\").is_ok()));\n\n    if serve_mode {\n        let port = port_opt.unwrap_or_else(|_| \"3000\".to_string());\n        run_server(&port, cli.top).await\n    } else {\n        run_once(&cli).await\n    }\n}\n\n// ── ONE-SHOT MODE ─────────────────────────────────────────────\nasync fn run_once(cli: &Cli) -> Result<()> {\n    info!(\"NGX Screener — one-shot mode\");\n    let client = Client::builder().timeout(Duration::from_secs(20)).build()?;\n    let mut stocks = fetcher::fetch_all_stocks(&client).await?;\n\n    if let Some(ref sf) = cli.sector {\n        let target = models::Sector::from_str(sf);\n        stocks.retain(|s| s.sector == target);\n    }\n    match cli.sort_by.as_str() {\n        \"volume\" => stocks.sort_by(|a, b| b.avg_volume.partial_cmp(&a.avg_volume).unwrap_or(std::cmp::Ordering::Equal)),\n        \"price\"  => stocks.sort_by(|a, b| b.current_price.partial_cmp(&a.current_price).unwrap_or(std::cmp::Ordering::Equal)),\n        _        => {}\n    }\n\n    let result = screener::screen(stocks, cli.top);\n    display::render(&result, cli.top);\n\n    match exporter::export_html(&result.top_stocks) {\n        Ok(p)  => {\n            println!(\"\\n  ================================================\");\n            println!(\"  SUCCESS — open this file in your browser:\");\n            println!(\"  {}\", p);\n            println!(\"  ================================================\\n\");\n        }\n        Err(e) => eprintln!(\"  WARNING: {}\", e),\n    }\n\n    if cli.export {\n        if let Ok(p) = exporter::export_csv(&result.top_stocks) {\n            println!(\"  CSV -> {}\", p);\n        }\n    }\n    Ok(())\n}\n\n// ── SERVER MODE (Render / Railway) ────────────────────────────\nasync fn run_server(port: &str, top: usize) -> Result<()> {\n    info!(\"NGX Radar — server mode on port {}\", port);\n\n    let initial_html = generate_html(top).await;\n\n    let state = AppState {\n        html:           Arc::new(RwLock::new(initial_html)),\n        json:           Arc::new(RwLock::new(\"{}\".to_string())),\n        insider_alerts: Arc::new(RwLock::new(insider::get_known_insider_transactions())),\n        request_count:  Arc::new(std::sync::atomic::AtomicU64::new(0)),\n    };\n\n    // Background: refresh stock data every 30 seconds\n    let sc = state.clone();\n    tokio::spawn(async move {\n        let mut interval = time::interval(Duration::from_secs(30));\n        loop {\n            interval.tick().await;\n            let html = generate_html(top).await;\n            if let Ok(mut w) = sc.html.write() {\n                *w = html;\n                info!(\"Stock data refreshed\");\n            }\n        }\n    });\n\n    // Background: refresh insider alerts every hour\n    let sc2 = state.clone();\n    tokio::spawn(async move {\n        let mut interval = time::interval(Duration::from_secs(3600));\n        loop {\n            interval.tick().await;\n            match insider::fetch_insider_alerts().await {\n                Ok(alerts) => {\n                    if let Ok(mut w) = sc2.insider_alerts.write() {\n                        *w = alerts;\n                        info!(\"Insider alerts refreshed\");\n                    }\n                }\n                Err(e) => eprintln!(\"Insider fetch error: {}\", e),\n            }\n        }\n    });\n\n    // Security headers\n    let security_layer = ServiceBuilder::new()\n        .layer(SetResponseHeaderLayer::overriding(\n            header::HeaderName::from_static(\"x-frame-options\"),\n            HeaderValue::from_static(\"DENY\"),\n        ))\n        .layer(SetResponseHeaderLayer::overriding(\n            header::HeaderName::from_static(\"x-content-type-options\"),\n            HeaderValue::from_static(\"nosniff\"),\n        ))\n        .layer(SetResponseHeaderLayer::overriding(\n            header::HeaderName::from_static(\"referrer-policy\"),\n            HeaderValue::from_static(\"strict-origin-when-cross-origin\"),\n        ))\n        .layer(SetResponseHeaderLayer::overriding(\n            header::HeaderName::from_static(\"strict-transport-security\"),\n            HeaderValue::from_static(\"max-age=31536000; includeSubDomains\"),\n        ))\n        .layer(SetResponseHeaderLayer::overriding(\n            header::HeaderName::from_static(\"content-security-policy\"),\n            HeaderValue::from_static(\n                \"default-src 'self'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; \\\n                 img-src 'self' https://logo.clearbit.com https://flagcdn.com data:; \\\n                 connect-src 'none'; frame-ancestors 'none';\"\n            ),\n        ));\n\n    let cors = CorsLayer::new()\n        .allow_methods([Method::GET])\n        .allow_origin(Any);\n\n    let app = Router::new()\n        .route(\"/\",         get(serve_dashboard))\n        .route(\"/api/data\", get(serve_json))\n        .route(\"/health\",   get(health_check))\n        .fallback(handler_404)\n        .with_state(state)\n        .layer(security_layer)\n        .layer(cors);\n\n    let addr = format!(\"0.0.0.0:{}\", port);\n    info!(\"Listening on http://{}\", addr);\n    let listener = tokio::net::TcpListener::bind(&addr).await?;\n    axum::serve(listener, app).await?;\n    Ok(())\n}\n\n// ── ROUTE HANDLERS ────────────────────────────────────────────\n\nasync fn serve_dashboard(State(state): State<AppState>) -> impl IntoResponse {\n    state.request_count.fetch_add(1, std::sync::atomic::Ordering::Relaxed);\n    let html = state.html.read().unwrap().clone();\n    (\n        StatusCode::OK,\n        [\n            (header::CACHE_CONTROL,  \"no-cache, must-revalidate\"),\n            (header::CONTENT_TYPE,   \"text/html; charset=utf-8\"),\n        ],\n        html,\n    )\n}\n\nasync fn serve_json(State(state): State<AppState>) -> impl IntoResponse {\n    let json = state.json.read().unwrap().clone();\n    (\n        StatusCode::OK,\n        [\n            (header::CACHE_CONTROL, \"public, max-age=30\"),\n            (header::CONTENT_TYPE,  \"application/json\"),\n        ],\n        json,\n    )\n}\n\nasync fn serve_json(State(state): State<AppState>) -> impl IntoResponse {\n    let json = state.json.read().unwrap().clone();\n    (\n        StatusCode::OK,\n        [\n            (header::CACHE_CONTROL, \"public, max-age=30\"),\n            (header::CONTENT_TYPE,  \"application/json\"),\n        ],\n        json,\n    )\n}\n\nasync fn health_check(State(state): State<AppState>) -> impl IntoResponse {\n    let count = state.request_count.load(std::sync::atomic::Ordering::Relaxed);\n    format!(\"OK — {} requests served\", count)\n}\n\nasync fn handler_404(uri: Uri) -> impl IntoResponse {\n    let path = uri.path().to_owned();\n    let html = format!(r#\"<!DOCTYPE html>\n<html lang=\"en\">\n<head><meta charset=\"UTF-8\"/><title>Not Found — NGX Radar</title>\n<style>body{{background:#080b12;color:#e2e8f0;font-family:sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;text-align:center}}\n.box{{max-width:400px;padding:20px}}h1{{font-size:22px;margin-bottom:10px}}p{{color:#64748b;font-size:14px;margin-bottom:24px}}\na{{background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff;text-decoration:none;padding:11px 22px;border-radius:8px;font-weight:700}}</style>\n</head>\n<body><div class=\"box\"><div style=\"font-size:48px\">🇳🇬</div>\n<h1>Page Not Found</h1>\n<p>The page <code style=\"background:#1e2535;padding:2px 6px;border-radius:3px\">{path}</code> doesn't exist.</p>\n<a href=\"/\">Go to Dashboard →</a>\n</div></body></html>\"#);\n    (\n        StatusCode::NOT_FOUND,\n        [(header::CONTENT_TYPE, \"text/html; charset=utf-8\")],\n        html,\n    )\n}\n\nasync fn generate_html(top: usize) -> String {\n    let client = match Client::builder().timeout(Duration::from_secs(20)).build() {\n        Ok(c)  => c,\n        Err(_) => return exporter::fallback_html(),\n    };\n    match fetcher::fetch_all_stocks(&client).await {\n        Ok(stocks) => {\n            let result = screener::screen(stocks, top);\n            exporter::build_html_string(&result.top_stocks)\n        }\n        Err(e) => {\n            eprintln!(\"Fetch error: {}\", e);\n            exporter::fallback_html()\n        }\n    }\n}\n
+mod display;
+mod exporter;
+mod fetcher;
+mod insider;
+mod models;
+mod screener;
+
+use anyhow::Result;
+use axum::{
+    extract::State,
+    http::{header, HeaderValue, Method, StatusCode, Uri},
+    response::IntoResponse,
+    routing::get,
+    Router,
+};
+use clap::Parser;
+use reqwest::Client;
+use std::sync::{Arc, RwLock};
+use std::time::Duration;
+use tokio::time;
+use tower::ServiceBuilder;
+use tower_http::{
+    cors::{Any, CorsLayer},
+    set_header::SetResponseHeaderLayer,
+};
+use tracing::info;
+use tracing_subscriber::EnvFilter;
+
+#[derive(Clone)]
+pub struct AppState {
+    pub html:            Arc<RwLock<String>>,
+    pub json:            Arc<RwLock<String>>,
+    pub insider_alerts:  Arc<RwLock<Vec<insider::InsiderAlert>>>,
+    pub request_count:   Arc<std::sync::atomic::AtomicU64>,
+}
+
+#[derive(Parser, Debug)]
+#[command(name = "ngx_screener", about = "NGX Radar — Nigerian Stock Exchange")]
+struct Cli {
+    #[arg(long)]
+    serve: bool,
+    #[arg(short, long, default_value_t = 30)]
+    top: usize,
+    #[arg(short, long)]
+    sector: Option<String>,
+    #[arg(short, long, default_value_t = false)]
+    export: bool,
+    #[arg(long, default_value = "change")]
+    sort_by: String,
+}
+
+#[tokio::main]
+async fn main() -> Result<()> {
+    dotenv::dotenv().ok();
+    tracing_subscriber::fmt()
+        .with_env_filter(EnvFilter::from_default_env())
+        .with_target(false)
+        .init();
+
+    let cli   = Cli::parse();
+    let port  = std::env::var("PORT").unwrap_or_else(|_| "3000".to_string());
+    let serve_mode = cli.serve
+        || std::env::var("PORT").is_ok()
+        || std::env::var("RAILWAY_ENVIRONMENT").is_ok()
+        || std::env::var("RENDER").is_ok();
+
+    if serve_mode {
+        run_server(&port, cli.top).await
+    } else {
+        run_once(&cli).await
+    }
+}
+
+// ── ONE-SHOT MODE ─────────────────────────────────────────────
+async fn run_once(cli: &Cli) -> Result<()> {
+    info!("NGX Screener — one-shot mode");
+    let client = Client::builder().timeout(Duration::from_secs(20)).build()?;
+    let mut stocks = fetcher::fetch_all_stocks(&client).await?;
+
+    if let Some(ref sf) = cli.sector {
+        let target = models::Sector::from_str(sf);
+        stocks.retain(|s| s.sector == target);
+    }
+    match cli.sort_by.as_str() {
+        "volume" => stocks.sort_by(|a, b| b.avg_volume.partial_cmp(&a.avg_volume).unwrap_or(std::cmp::Ordering::Equal)),
+        "price"  => stocks.sort_by(|a, b| b.current_price.partial_cmp(&a.current_price).unwrap_or(std::cmp::Ordering::Equal)),
+        _        => {}
+    }
+
+    let result = screener::screen(stocks, cli.top);
+    display::render(&result, cli.top);
+
+    match exporter::export_html(&result.top_stocks) {
+        Ok(p)  => {
+            println!("\n  ================================================");
+            println!("  SUCCESS — open this file in your browser:");
+            println!("  {}", p);
+            println!("  ================================================\n");
+        }
+        Err(e) => eprintln!("  WARNING: {}", e),
+    }
+
+    if cli.export {
+        if let Ok(p) = exporter::export_csv(&result.top_stocks) {
+            println!("  CSV -> {}", p);
+        }
+    }
+    Ok(())
+}
+
+// ── SERVER MODE (Render / Railway) ────────────────────────────
+async fn run_server(port: &str, top: usize) -> Result<()> {
+    info!("NGX Radar — server mode on port {}", port);
+
+    let initial_html = generate_html(top).await;
+
+    let state = AppState {
+        html:           Arc::new(RwLock::new(initial_html)),
+        json:           Arc::new(RwLock::new("{}".to_string())),
+        insider_alerts: Arc::new(RwLock::new(insider::get_known_insider_transactions())),
+        request_count:  Arc::new(std::sync::atomic::AtomicU64::new(0)),
+    };
+
+    // Background: refresh stock data every 30 seconds
+    let sc = state.clone();
+    tokio::spawn(async move {
+        let mut interval = time::interval(Duration::from_secs(30));
+        loop {
+            interval.tick().await;
+            let html = generate_html(top).await;
+            if let Ok(mut w) = sc.html.write() {
+                *w = html;
+                info!("Stock data refreshed");
+            }
+        }
+    });
+
+    // Background: refresh insider alerts every hour
+    let sc2 = state.clone();
+    tokio::spawn(async move {
+        let mut interval = time::interval(Duration::from_secs(3600));
+        loop {
+            interval.tick().await;
+            match insider::fetch_insider_alerts().await {
+                Ok(alerts) => {
+                    if let Ok(mut w) = sc2.insider_alerts.write() {
+                        *w = alerts;
+                        info!("Insider alerts refreshed");
+                    }
+                }
+                Err(e) => eprintln!("Insider fetch error: {}", e),
+            }
+        }
+    });
+
+    // Security headers
+    let security_layer = ServiceBuilder::new()
+        .layer(SetResponseHeaderLayer::overriding(
+            header::HeaderName::from_static("x-frame-options"),
+            HeaderValue::from_static("DENY"),
+        ))
+        .layer(SetResponseHeaderLayer::overriding(
+            header::HeaderName::from_static("x-content-type-options"),
+            HeaderValue::from_static("nosniff"),
+        ))
+        .layer(SetResponseHeaderLayer::overriding(
+            header::HeaderName::from_static("referrer-policy"),
+            HeaderValue::from_static("strict-origin-when-cross-origin"),
+        ))
+        .layer(SetResponseHeaderLayer::overriding(
+            header::HeaderName::from_static("strict-transport-security"),
+            HeaderValue::from_static("max-age=31536000; includeSubDomains"),
+        ))
+        .layer(SetResponseHeaderLayer::overriding(
+            header::HeaderName::from_static("content-security-policy"),
+            HeaderValue::from_static(
+                "default-src 'self'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; \
+                 img-src 'self' https://logo.clearbit.com https://flagcdn.com data:; \
+                 connect-src 'none'; frame-ancestors 'none';"
+            ),
+        ));
+
+    let cors = CorsLayer::new()
+        .allow_methods([Method::GET])
+        .allow_origin(Any);
+
+    let app = Router::new()
+        .route("/",         get(serve_dashboard))
+        .route("/api/data", get(serve_json))
+        .route("/health",   get(health_check))
+        .fallback(handler_404)
+        .with_state(state)
+        .layer(security_layer)
+        .layer(cors);
+
+    let addr = format!("0.0.0.0:{}", port);
+    info!("Listening on http://{}", addr);
+    let listener = tokio::net::TcpListener::bind(&addr).await?;
+    axum::serve(listener, app).await?;
+    Ok(())
+}
+
+// ── ROUTE HANDLERS ────────────────────────────────────────────
+
+async fn serve_dashboard(State(state): State<AppState>) -> impl IntoResponse {
+    state.request_count.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    let html = state.html.read().unwrap().clone();
+    (
+        StatusCode::OK,
+        [
+            (header::CACHE_CONTROL,  "no-cache, must-revalidate"),
+            (header::CONTENT_TYPE,   "text/html; charset=utf-8"),
+        ],
+        html,
+    )
+}
+
+async fn serve_json(State(state): State<AppState>) -> impl IntoResponse {
+    let json = state.json.read().unwrap().clone();
+    (
+        StatusCode::OK,
+        [
+            (header::CACHE_CONTROL, "public, max-age=30"),
+            (header::CONTENT_TYPE,  "application/json"),
+        ],
+        json,
+    )
+}
+
+async fn health_check(State(state): State<AppState>) -> impl IntoResponse {
+    let count = state.request_count.load(std::sync::atomic::Ordering::Relaxed);
+    format!("OK — {} requests served", count)
+}
+
+async fn handler_404(uri: Uri) -> impl IntoResponse {
+    let path = uri.path().to_owned();
+    let html = format!(r#"<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"/><title>Not Found — NGX Radar</title>
+<style>body{{background:#080b12;color:#e2e8f0;font-family:sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;text-align:center}}
+.box{{max-width:400px;padding:20px}}h1{{font-size:22px;margin-bottom:10px}}p{{color:#64748b;font-size:14px;margin-bottom:24px}}
+a{{background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff;text-decoration:none;padding:11px 22px;border-radius:8px;font-weight:700}}</style>
+</head>
+<body><div class="box"><div style="font-size:48px">🇳🇬</div>
+<h1>Page Not Found</h1>
+<p>The page <code style="background:#1e2535;padding:2px 6px;border-radius:3px">{path}</code> doesn't exist.</p>
+<a href="/">Go to Dashboard →</a>
+</div></body></html>"#);
+    (
+        StatusCode::NOT_FOUND,
+        [(header::CONTENT_TYPE, "text/html; charset=utf-8")],
+        html,
+    )
+}
+
+async fn generate_html(top: usize) -> String {
+    let client = match Client::builder().timeout(Duration::from_secs(20)).build() {
+        Ok(c)  => c,
+        Err(_) => return exporter::fallback_html(),
+    };
+    match fetcher::fetch_all_stocks(&client).await {
+        Ok(stocks) => {
+            let result = screener::screen(stocks, top);
+            exporter::build_html_string(&result.top_stocks)
+        }
+        Err(e) => {
+            eprintln!("Fetch error: {}", e);
+            exporter::fallback_html()
+        }
+    }
+}
